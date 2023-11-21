@@ -1,4 +1,5 @@
 .venv
-__pycache
-dafni_build
+.vscode
+**/__pycache__
+build_dafni
 outputs
