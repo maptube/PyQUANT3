@@ -1,0 +1,98 @@
+kind: M
+api_version: v1beta3
+metadata:
+  display_name: QUANT2
+  name: quant2
+  contact_point_name: richard
+  contact_point_email: richard.milton@ucl.ac.uk
+  summary: The QUANT2 Spatial Interaction Model
+  publisher: CASA
+  description: >
+    The QUANT2 spatial interaction model for England, Scotland and Wales.
+
+    More to go here...
+spec:
+  inputs:
+    parameters:
+      - name: OpCode
+        title: Operation code for QUANT
+        description: Tells QUANT what operation to perform - not currently implemented - it always calibrates for now - this is going to be a string
+        type: string
+        default: 'CALIBRATE'
+        required: true
+    dataslots:
+      - name: TObs_1.bin
+        description: >
+          TObs_1.bin
+        default:
+          #TObs_1
+          - 61ba53be-42c4-40de-88fe-326d115f0f5d
+        path: inputs/model-runs
+        required: true
+      - name: TObs_2.bin
+        description: >
+          TObs_2.bin
+        default:
+          #TObs_2
+          - a9e9e88d-b422-4d5a-a454-8abf56587c98
+        path: inputs/model-runs
+        required: true
+      - name: TObs_3.bin
+        description: >
+          TObs_3.bin
+        default:
+          #TObs_3
+          - 9d9d20cc-d901-494f-8ae6-46a045f284f9
+        path: inputs/model-runs
+        required: true
+      - name: dis_roads_min.bin
+        description: >
+          dis_roads_min.bin
+        default:
+          #dis1 road
+          - 0faecc27-7974-4d97-b11b-5a661ba5322d
+        path: inputs/model-runs
+        required: true
+      - name: dis_bus_min.bin
+        description: >
+          dis_bus_min.bin
+        default:
+          #dis2 bus
+          - 072ead5b-2c5b-4877-b2cf-d61f6acef73e
+        path: inputs/model-runs
+        required: true
+      - name: dis_gbrail_min.bin
+        description: >
+          dis_gbrail_min.bin
+        default:
+          #dis3 gbrail
+          - 0c9a8a60-4ecd-4893-bb92-2bdac180e820
+        path: inputs/model-runs
+        required: true
+      #- name: ZoneCodes.bin
+      #  description: >
+      #    ZoneCodes.bin
+      #  default:
+      #    #zonecodes
+      #    - d5faa9b9-8a4a-421c-a0bd-cd279ab2aa68
+      #  path: inputs/model-runs/ZoneCodes.bin
+      #  required: true
+      #- name: GreenBeltConstraints.bin
+      #  description: >
+      #    GreenBeltConstraints.bin
+      #  default:
+      #    #green belt
+      #    - 6c666dc1-5157-4ecf-9dfa-c4b6cec54589
+      #  path: inputs/model-runs/GreenBeltConstraints.bin
+      #  required: true
+  outputs:
+    datasets:
+      - name: debug.txt
+        type: txt
+        description: Log file
+      - name: PyQUANT3_log.txt
+        type: txt
+        description: Log File
+      - name: calibration.yaml
+        type: txt
+        description: yaml file containing betas and calibration values

@@ -1,0 +1,17 @@
+dirs:
+  #ModelRunsDir: "C:\\richard\\github\\QUANT2\\quant2\\wwwroot\\model-runs\\EWS"
+  ModelRunsDir: "/data/inputs/model-runs"
+  OutputDir: ""
+matrices:
+  TObs1: "TObs_1.bin"
+  TObs2: "TObs_2.bin"
+  TObs3: "TObs_3.bin"
+  dis_roads: "dis_roads_min.bin"
+  dis_buses: "dis_bus_min.bin"
+  dis_rail: "dis_gbrail_min.bin"
+tables:
+  GreenBeltConstraints: "GreenBeltConstraints.xml"
+  Constraints_B: "Constraints_B.csv"
+  PopulationArea: "PopArea_KS101_MSOA.xml"
+  ZoneCodes: "EWS_ZoneCodes.xml"
+  
