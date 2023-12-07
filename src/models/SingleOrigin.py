@@ -2,6 +2,9 @@ import numpy as np
 from math import exp, fabs
 from sys import float_info
 import time
+import copy
+
+from networks.ModifiedZonesAPSP import ModifiedZonesAPSP
 
 """
 Single destination constrained gravity model
@@ -54,6 +57,24 @@ class SingleOrigin:
 ###############################################################################
 
     """
+    deepcopy
+    Return a deep copy version of self
+    """
+    def deepcopy(self):
+        qm3 = SingleOrigin()
+        qm3.numModes = self.numModes
+        qm3.isUsingConstraints = self.isUsingConstraints
+        qm3.constraints = copy.deepcopy(self.constraints)
+        qm3.Beta = copy.deepcopy(self.Beta)
+        qm3.TObs = copy.deepcopy(self.TObs)
+        qm3.TPred = copy.deepcopy(self.TPred)
+        qm3.Cij = copy.deepcopy(self.Cij)
+        qm3.B = copy.deepcopy(self.B)
+        return qm3
+
+###############################################################################
+
+    """
     Calculate Oi for a trips matrix.
     Two methods are presented here, one which is simple and very slow and one
     which uses python vector maths and is much faster. Once 2 is proven equal
@@ -96,6 +117,59 @@ class SingleOrigin:
         #Method 2 - MUCH FASTER! But check that it is identical to method 1
         Dj=Tij.sum(axis=0)
         return Dj
+
+###############################################################################
+
+    """
+    fastComputePredicted
+    Computes the predicted matrices based on betas and TObs having previously
+    been set from a calibration run. Used in scenarios for the baseline
+    matrices.
+    PRE: betas, TObs and Cij all set
+    POST: TPred all set
+    """
+    def fastComputePredicted(self):
+        (M, N) = np.shape(self.TObs[0])
+        
+        #Oi obs
+        ksum=np.array([np.zeros(N),np.zeros(N),np.zeros(N)])
+        for k in range(0,self.numModes):
+            ksum[k]=self.TObs[k].sum(axis=1)
+        OiObs = ksum.sum(axis=0)
+
+        #Dj obs
+        ksum=np.array([np.zeros(N),np.zeros(N),np.zeros(N)])
+        for k in range(0,self.numModes):
+            ksum[k]=self.TObs[k].sum(axis=0)
+        DjObs = ksum.sum(axis=0)
+
+        #constraints initialisation
+        B = [1.0 for i in range(0,N)] #hack
+        Z = [0.0 for i in range(0,N)]
+        for j in range(0,N):
+            Z[j] = float_info.max
+            if self.isUsingConstraints:
+                if self.constraints[j] >= 1.0: #constraints array taking place of Gj (Green Belt) in documentation
+                    #Gj=1 means 0.8 of MSOA land is green belt, so can't be built on
+                    #set constraint to original Dj
+                    Z[j] = DjObs[j]
+        #end of constraints initialisation - have now set B[] and Z[] based on IsUsingConstraints, Constraints[] and DObs[]
+
+        #pre-calculate exp(-Beta[k]*self.Cij[k]) for speed
+        expBetaCij = [np.exp(-self.Beta[k]*self.Cij[k]) for k in range(0,self.numModes)]
+        self.TPred = [np.zeros(N*N).reshape(N, N) for k in range(0,self.numModes) ]
+        for k in range(0,self.numModes): #mode loop
+            for i in range(0,N):
+                denom2=0.0
+                for kk in range(0,self.numModes):
+                    denom2+=np.sum(DjObs*expBetaCij[kk][i,:])
+
+                #numerator calculation for this mode (k)
+                Tijk2=OiObs[i]*(B*DjObs*expBetaCij[k][i]/denom2)
+                self.TPred[k][i,:]=Tijk2 #put answer slice back in return array 
+            #end for i
+        #end for k
+    #end def
 
 ###############################################################################
 
@@ -289,64 +363,92 @@ class SingleOrigin:
     TODO: need to instrument this
     TODO: writes out one file, which is the sum of the three predicted matrices produced
     @param name="OiDjHash" Hashmap of zonei index and Oi, Dj values for that area. A value of -1 for Oi or Dj means no change.
-    @param name="hasConstraints">Run with random values added to the Dj values.
+    @param name="NetworkChanges" List<DirectNetworkChange> Changes to network based on MOSA to MSOA direct changes to the dis matrix. The
+    zone ids are used to identify rows and columns. Time is in SECONDS. The array is k=0 (road), k=1 (bus), k=2 (rail).
+    NOTE: you can pass in null for no changes. At the moment, these are directional, so zone 0->1 DOES NOT affect zone 1->0.
+    @param name="hasConstraints" Run with random values added to the Dj values.
     """
-    def runWithChanges(self, OiDjHash, hasConstraints):
+    def runWithChanges(self, OiDjHash, NetworkChanges, hasConstraints):
 
         (M, N) = np.shape(self.TObs[0])
 
-        DjObs = [0.0 for i in range(0,N)]
-        OiObs = [0.0 for i in range(0,N)]
-        Sum=0.0
+        #DjObs = [0.0 for i in range(0,N)]
+        #OiObs = [0.0 for i in range(0,N)]
+        #Sum=0.0
 
         #OiObs
-        for i in range(0,N):
-            sum = 0.0
-            for j in range(0,N):
-                for k in range(0,self.numModes): sum += self.TObs[k][i, j]
-            #end for j
-            OiObs[i] = sum
+        #for i in range(0,N):
+        #    sum = 0.0
+        #    for j in range(0,N):
+        #        for k in range(0,self.numModes): sum += self.TObs[k][i, j]
+        #    #end for j
+        #    OiObs[i] = sum
         #end for i
+        #MUCH FASTER!
+        ksum=np.array([np.zeros(N),np.zeros(N),np.zeros(N)])
+        for k in range(0,self.numModes):
+            ksum[k]=self.TObs[k].sum(axis=1)
+        OiObs = ksum.sum(axis=0)
 
         #DjObs
-        for j in range(0,N):
-            sum = 0.0
-            for i in range(0,N):
-                for k in range(0,self.numModes): sum += self.TObs[k][i, j]
-            #end for i
-            DjObs[j] = sum
+        #for j in range(0,N):
+        #    sum = 0.0
+        #    for i in range(0,N):
+        #        for k in range(0,self.numModes): sum += self.TObs[k][i, j]
+        #    #end for i
+        #    DjObs[j] = sum
         #end for j
+        #MUCH FASTER!
+        ksum=np.array([np.zeros(N),np.zeros(N),np.zeros(N)])
+        for k in range(0,self.numModes):
+            ksum[k]=self.TObs[k].sum(axis=0)
+        DjObs = ksum.sum(axis=0)
 
         #this is a complete hack - generate a TPred matrix that we can get Dj constraints from
-        TPredCons = [np.arange(N*N).reshape(N, N) for k in range(0,self.numModes) ]
+        TPredCons = [np.arange(N*N,dtype=np.float64).reshape(N, N) for k in range(0,self.numModes) ]
+        #pre-calculate exp(-Beta[k]*self.Cij[k]) for speed
+        expBetaCij = [np.exp(-self.Beta[k]*self.Cij[k]) for k in range(0,self.numModes)]
         for k in range(0,self.numModes): #mode loop
-            TPredCons[k] = np.arange(N*N).reshape(N,N)
+            #TPredCons[k] = np.arange(N*N).reshape(N,N)
 
             for i in range(0,N):
                 #denominator calculation which is sum of all modes
-                denom = 0.0
-                for kk in range(0,self.numModes): #second mode loop
-                    for j in range(0,N):
-                        denom += DjObs[j] * exp(-self.Beta[kk] * self.Cij[kk][i, j])
-                    #end for j
+                #denom = 0.0
+                #for kk in range(0,self.numModes): #second mode loop
+                #    for j in range(0,N):
+                #        denom += DjObs[j] * exp(-self.Beta[kk] * self.Cij[kk][i, j])
+                #    #end for j
                 #end for kk
+                #faster...?
+                denom2=0.0
+                for kk in range(0,self.numModes):
+                    #expBetaCij=np.exp(-Beta[kk]*self.Cij[kk])
+                    #print("expBetaCij=",expBetaCij)
+                    denom2+=np.sum(DjObs*expBetaCij[kk][i,:])
 
                 #numerator calculation for this mode (k)
-                for j in range(0,N):
-                    TPredCons[k][i, j] = self.B[j] * OiObs[i] * DjObs[j] * exp(-self.Beta[k] * self.Cij[k][i, j]) / denom
+                #for j in range(0,N):
+                #    TPredCons[k][i, j] = self.B[j] * OiObs[i] * DjObs[j] * exp(-self.Beta[k] * self.Cij[k][i, j]) / denom
                 #end for j
+                #faster
+                Tijk2=OiObs[i]*(self.B*DjObs*expBetaCij[k][i]/denom2)
+                TPredCons[k][i,:]=Tijk2 #put answer slice back in return array
             #end for i
         #end for k
         #now the DjCons - you could just set Zj here?
         DjCons = [0.0 for j in range(0,N)]
-        for j in range(0,N):
-            sum = 0.0
-            for i in range(0,N):
-                for k in range(0,self.numModes): sum += TPredCons[k][i, j]
-            #end for i
-            DjCons[j] = sum
+        #for j in range(0,N):
+        #    sum = 0.0
+        #    for i in range(0,N):
+        #        for k in range(0,self.numModes): sum += TPredCons[k][i, j]
+        #    #end for i
+        #    DjCons[j] = sum
         #end for j
-
+        #MUCH FASTER!
+        ksum=np.array([np.zeros(N),np.zeros(N),np.zeros(N)])
+        for k in range(0,self.numModes):
+            ksum[k]=TPredCons[k].sum(axis=0)
+        DjCons = ksum.sum(axis=0)
             
         #
         #
@@ -375,6 +477,33 @@ class SingleOrigin:
             if value[1] >= 0: DjObs[i] = value[1]
         #end for key
 
+        #apply network changes - these are directly made to the dis matrices
+        if NetworkChanges: #test against none type
+            #InstrumentStatusText = "Making network changes";
+            count = 0
+            countMode = [ 0, 0, 0 ]
+            for dnc in NetworkChanges:
+                self.Cij[dnc.mode][dnc.originZonei, dnc.destinationZonei] = dnc.absoluteTimeSecs / 60.0 #seconds to minutes (NOTE: this is done in ComputeModAPSP anyway)
+                #and add the reverse link
+                self.Cij[dnc.mode][dnc.destinationZonei, dnc.originZonei] = dnc.absoluteTimeSecs / 60.0 #seconds to minutes
+                #compute secondary links - both ways around
+                #int linkCount1, linkCount2;
+                #float totalMinsSaved1, totalMinsSaved2;
+                linkCount1, totalMinsSaved1 = ModifiedZonesAPSP.computeModAPSP(self.Cij[dnc.mode], dnc.originZonei, dnc.destinationZonei, dnc.absoluteTimeSecs / 60.0)
+                linkCount2, totalMinsSaved2 = ModifiedZonesAPSP.computeModAPSP(self.Cij[dnc.mode], dnc.destinationZonei, dnc.originZonei, dnc.absoluteTimeSecs / 60.0)
+                count += linkCount1 + linkCount2
+                countMode[dnc.mode] += linkCount1 + linkCount2
+                #totalMinsSaved = totalMinsSaved1+totalMinsSaved2; //if you need the minutes saved...
+            #endfor
+            #write out changed dis matrices if necessary
+            #if (countMode[(int)QUANT3Modes.Q3Road] > 0)
+            #    dis[(int)QUANT3Modes.Q3Road].DirtySerialise(Path.Combine(rootdir,"dis_road.bin"));
+
+            print("QUANTModel3::RunWithChanges ComputeModAPSP links changed = ",count)
+            #now need to recompute exp(-beta * Cij) as Cij has changed!
+            expBetaCij = [np.exp(-self.Beta[k]*self.Cij[k]) for k in range(0,self.numModes)]
+        #endif network changes!=null
+
 
         constraintsMet = False
         while not constraintsMet:
@@ -384,20 +513,31 @@ class SingleOrigin:
 
             #run 3 model
             print("Run 3 model")
+            self.TPred=[]
             for k in range(0,self.numModes): #mode loop
-                self.TPred[k] = np.arange(N*N).reshape(N,N)
+                #self.TPred[k] = np.arange(N*N).reshape(N,N)
+                self.TPred.append(np.arange(N*N,dtype=np.float64).reshape(N,N))
 
                 for i in range(0,N):
                     #denominator calculation which is sum of all modes
-                    denom = 0.0
-                    for kk in range(0,self.numModes): #second mode loop
-                        for j in range(0,N):
-                            denom += self.B[j]*DjObs[j] * exp(-self.Beta[kk] * self.Cij[kk][i, j])
+                    #denom = 0.0
+                    #for kk in range(0,self.numModes): #second mode loop
+                    #    for j in range(0,N):
+                    #        denom += self.B[j]*DjObs[j] * exp(-self.Beta[kk] * self.Cij[kk][i, j])
                     #end for kk
+                    #faster...?
+                    denom2=0.0
+                    for kk in range(0,self.numModes):
+                        #expBetaCij=np.exp(-Beta[kk]*self.Cij[kk])
+                        #print("expBetaCij=",expBetaCij)
+                        denom2+=np.sum(DjObs*expBetaCij[kk][i,:])
 
                     #numerator calculation for this mode (k)
-                    for j in range(0,N):
-                        self.TPred[k][i, j] = self.B[j] * OiObs[i] * DjObs[j] * exp(-self.Beta[k] * self.Cij[k][i, j]) / denom
+                    #for j in range(0,N):
+                    #    self.TPred[k][i, j] = self.B[j] * OiObs[i] * DjObs[j] * exp(-self.Beta[k] * self.Cij[k][i, j]) / denom
+                    #faster
+                    Tijk2=OiObs[i]*(self.B*DjObs*expBetaCij[k][i]/denom2)
+                    self.TPred[k][i,:]=Tijk2 #put answer slice back in return array
                 #end for i
             #end for k
 
@@ -423,20 +563,25 @@ class SingleOrigin:
         #end while not constraintsMet
 
         #add all three TPred together
-        TPredAll = np.arange(N*N).reshape(N,N)
-        for i in range(0,N):
-            for j in range(0,N):
-                Sum = 0.0
-                for k in range(0,self.numModes):
-                    Sum += self.TPred[k][i, j]
-                #end for k
-                TPredAll[i, j] = Sum
-            #end for j
-        #end for i
+        #TPredAll = np.arange(N*N).reshape(N,N)
+        #for i in range(0,N):
+        #    for j in range(0,N):
+        #        Sum = 0.0
+        #        for k in range(0,self.numModes):
+        #            Sum += self.TPred[k][i, j]
+        #        #end for k
+        #        TPredAll[i, j] = Sum
+        #    #end for j
+        ##end for i
+        #faster
+        #for k in range(0,self.numModes):
+        #    TPredAll += self.TPred[k]
+        
             
         #and store the result somewhere
         #TPredAll.DirtySerialise(OutFilename);
-        return TPredAll
+        #return TPredAll
+    #end def runWithChanges
 
 
 ###############################################################################

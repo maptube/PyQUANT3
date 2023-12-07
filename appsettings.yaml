@@ -1,6 +1,7 @@
 dirs:
   #ModelRunsDir: "C:\\richard\\github\\QUANT2\\quant2\\wwwroot\\model-runs\\EWS"
-  ModelRunsDir: "/data/inputs/model-runs"
+  #ModelRunsDir: "/data/inputs/model-runs"
+  ModelRunsDir: model-runs/EWS
   OutputDir: ""
 matrices:
   TObs1: "TObs_1.bin"
