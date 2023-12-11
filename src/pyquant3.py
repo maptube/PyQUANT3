@@ -45,6 +45,7 @@ import yaml
 import getopt
 from pathlib import Path
 import numpy as np
+import pandas as pd
 
 #local imports
 from utils import loadQUANTMatrix
@@ -61,11 +62,13 @@ This wouldn't normally be used in production, but it allows you to pass in
 environment variables when debugging e.g. --opcode=CALIBRATE
 """
 def parseArgs(argv):
-    opts,args = getopt.getopt(argv, 'ho:', ['help','opcode=','betaroad=','betabus=','betarail='])
+    opts,args = getopt.getopt(argv, 'hdo:', ['help','dafni','opcode=','betaroad=','betabus=','betarail='])
     for opt, arg in opts:
         if opt in('-h','--help'):
             print ('pyquant3.py -o [CALIBRATE|RUN] [--betaroad] [--betabus] [--beta rail]')
             sys.exit()
+        elif opt in ('-d','--dafni'):
+            os.environ['IsOnDAFNI']=True
         elif opt in ('-o', '--opcode'):
             os.environ['OpCode']=arg
         elif opt in ('--betaroad'):
@@ -86,77 +89,89 @@ takes the action dictated by "OpCode" e.g. CALIBRATE or RUN
 """
 def main(argv):
     global input_folder, output_folder
-    global Tij_Obs_road, Tij_Obs_bus, Tij_Obs_rail
-    global Cij_road, Cij_bus, Cij_rail
+    global Tij_Obs_road, Tij_Obs_bus, Tij_Obs_rail #observed flows between zones
+    global Cij_road, Cij_bus, Cij_rail #costs (time minutes) between zones
+    global Lij_road, Lij_bus, Lij_rail #distance between zones
 
     print("hello world!")
 
-    #set up files
-    #DAFNI input_folder=Path("/data/inputs")
-    #DAFNI output_folder=Path("/data/outputs")
-    input_folder=Path("C:\\richard\\github\\QUANT2\\wwwroot")
-    output_folder=Path("outputs")
-    output_folder.mkdir(parents=True, exist_ok=True)
-    log_file_name = output_folder.joinpath("PyQUANT3_log.txt")
-    now = datetime.now()
-    impacts_file = output_folder.joinpath("impacts_"+now.strftime("%Y%m%d_%H%M%S")+".csv")
-
-    #start logging
-    logging.basicConfig(filename=log_file_name, filemode='w', level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
-    now = datetime.now()
-    logging.info("PyQUANT3: starting run at "+now.strftime("%Y%m%d_%H:%M:%S"))
-
-
-    #debugging preamble - check input folder for files and log
-    output_file = output_folder.joinpath('debug.txt')
-    try:
-        #output_file.write_text('different text')
-        #os.system('ls -l -R /data/inputs/model-runs >> /data/outputs/debug.txt') #real check of input files
-        #listdir_modelruns = str(os.listdir("/data/inputs/model-runs")) #inputs,outputs
-        listdir_modelruns = str(os.listdir(input_folder))
-        logging.info('os.listdir (model-runs): ' + listdir_modelruns)
-    except Exception as e:
-        logging.error("Exception: ", exc_info=True)
-        print(e)
-    ########
-
+    #read any command line args which may override the following file paths
+    parseArgs(argv)
 
     #configuration file which contains names of all the files we need to run the model
     #these will have been mapped to /data/inputs/model-runs by DAFNI or our local launch config (tasks.json)
     #this MUST match the path set in appsettings.yaml "ModelRunsDir"
     configuration = yaml.safe_load(open("appsettings.yaml"))
 
-    LocalModelRunsDir = configuration["dirs"]["ModelRunsDir"]
-    ModelRunsDir = input_folder.joinpath(LocalModelRunsDir) #NOTE: this corrupts LocalModelRunsDir too!
-    OutputDir = configuration["dirs"]["OutputDir"]
+    #set up files - depending if we're running on DAFNI or locally
+    isOnDAFNI = os.getenv("IsOnDAFNI",False)
+
+    ########
+    #debugging preamble for DAFNI - check input folder for files and log
+    if isOnDAFNI:
+        try:
+            os.system('ls -l -R /data/inputs/model-runs >> /data/outputs/debug.txt') #real check of input files
+            os.system('set >> /data/outputs/debug.txt') #list envonment variables
+        except Exception as e:
+            #NOTE: we can't log here as there is no log file yet
+            print(e)
+    ########
+
+    if isOnDAFNI:
+        #DAFNI input_folder=Path("/data/inputs")
+        #DAFNI output_folder=Path("/data/outputs")
+        input_folder = Path(configuration["dirs"]["DAFNIInputsDir"])
+        output_folder = Path(configuration["dirs"]["DAFNIOutputsDir"])
+        ModelRunsDirName = configuration["dirs"]["DAFNIModelRunsDir"]
+    else:
+        input_folder=Path(configuration["dirs"]["LocalInputsDir"])
+        output_folder=Path(configuration["dirs"]["LocalOutputsDir"])
+        ModelRunsDirName = configuration["dirs"]["LocalModelRunsDir"]
+
+    #now we can start the logging as we know where to put the file
+    output_folder.mkdir(parents=True, exist_ok=True)
+    log_file_name = output_folder.joinpath("PyQUANT3_log.txt")
+
+    #start logging
+    logging.basicConfig(filename=log_file_name, filemode='w', level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
+    now = datetime.now()
+    logging.info("PyQUANT3: starting run at "+now.strftime("%Y%m%d_%H:%M:%S"))
+    logging.info("PyQUANT3: IsOnDAFNI=" + str(isOnDAFNI))
+
+    ModelRunsDir = input_folder.joinpath(ModelRunsDirName) #NOTE: this corrupts input folder????
     TijObsRoadFilename = configuration["matrices"]["TObs1"]
     TijObsBusFilename = configuration["matrices"]["TObs2"]
     TijObsRailFilename = configuration["matrices"]["TObs3"]
     DisRoadFilename = configuration["matrices"]["dis_roads"]
     DisBusFilename = configuration["matrices"]["dis_buses"]
     DisGBRailFilename = configuration["matrices"]["dis_rail"]
+    DisCrowflyKMFilename = configuration["matrices"]["dis_crowfly"]
+    DisCrowflyVertexRoadsKMFilename = configuration["matrices"]["dis_crowfly_vertex_roads_KM"]
+    DisCrowflyVertexBusKMFilename = configuration["matrices"]["dis_crowfly_vertex_bus_KM"]
+    DisCrowflyVertexGBRailKMFilename = configuration["matrices"]["dis_crowfly_vertex_gbrail_KM"]
     GreenBeltConstraintsFilename = configuration["tables"]["GreenBeltConstraints"]
     ConstraintsBFilename = configuration["tables"]["Constraints_B"]
     PopulationTableFilename = configuration["tables"]["PopulationArea"]
     ZoneCodesFilename = configuration["tables"]["ZoneCodes"]
 
-    #now read any command line args which may override the previous
-    parseArgs(argv)
-
     #inputs - this is to aid debugging as it will go into the console
-    logging.info("pyquant3: LocalModelRunsDir = " + LocalModelRunsDir + " ModelRunsDir = " + str(ModelRunsDir))
+    logging.info("pyquant3: ModelRunsDirName = " + ModelRunsDirName + " ModelRunsDir = " + str(ModelRunsDir))
     #prefix?
-    logging.info("pyquant3: OutputDir = " + OutputDir)
     logging.info("pyquant3: TijObsRoadFilename = " + TijObsRoadFilename)
     logging.info("pyquant3: TijObsBusFilename = " + TijObsBusFilename)
     logging.info("pyquant3: TijObsGBRailFilename = " + TijObsRailFilename)
     logging.info("pyquant3: DisRoadFilename = " + DisRoadFilename)
     logging.info("pyquant3: DisBusFilename = " + DisBusFilename)
     logging.info("pyquant3: DisGBRailFilename = " + DisGBRailFilename)
+    logging.info("pyquant3: DisCrowflyKMFilename = " + DisCrowflyKMFilename)
+    logging.info("pyquant3: DisCrowflyVertexRoadsKMFilename = " + DisCrowflyVertexRoadsKMFilename)
+    logging.info("pyquant3: DisCrowflyVertexBusKMFilename = " + DisCrowflyVertexBusKMFilename)
+    logging.info("pyquant3: DisCrowflyVertexGBRailKMFilename = " + DisCrowflyVertexGBRailKMFilename)
     logging.info("pyquant3: GreenBeltConstraintsFilename = " + GreenBeltConstraintsFilename)
     logging.info("pyquant3: ConstraintsBFilename = " + ConstraintsBFilename)
     logging.info("pyquant3: PopulationTableFilename = " + PopulationTableFilename)
     logging.info("pyquant3: ZoneCodesFilename = " + ZoneCodesFilename)
+
 
     #Environment variables
 
@@ -184,10 +199,24 @@ def main(argv):
         Cij_road = loadQUANTMatrix(os.path.join(ModelRunsDir,DisRoadFilename))
         Cij_bus = loadQUANTMatrix(os.path.join(ModelRunsDir,DisBusFilename))
         Cij_rail = loadQUANTMatrix(os.path.join(ModelRunsDir,DisGBRailFilename))
+        #and transport KM distances
+        Lij_road = loadQUANTMatrix(os.path.join(ModelRunsDir,DisCrowflyVertexRoadsKMFilename))
+        Lij_bus = loadQUANTMatrix(os.path.join(ModelRunsDir,DisCrowflyVertexBusKMFilename))
+        Lij_rail = loadQUANTMatrix(os.path.join(ModelRunsDir,DisCrowflyVertexGBRailKMFilename))
     except Exception as e:
         logging.error("Exception in matrix loading: ", exc_info=True)
         print(e)
     ###
+
+    #load zone codes xml file into a pandas dataframe
+    try:
+        with open(os.path.join(ModelRunsDir,ZoneCodesFilename)) as f:
+            df_ZoneCodes = pd.read_xml(f)
+            print(df_ZoneCodes.head(10))
+            print("ZoneCodes has "+str(len(df_ZoneCodes.index))+" rows")
+    except Exception as e:
+        logging.error("Exception loading zone codes xml file: ", exc_info=True)
+        print(e)
 
 
     #we have to add the all modes matrices because they don't exist in this form on the server
@@ -209,48 +238,77 @@ def main(argv):
         #todo: or we could assume that it's passing in a code to make a randomised scenario?
         #basic plan: calibrate (or hard code), make up a scenario, run scenario, measure impacts [repeat]
         logging.info('run')
-        numIterations = 1 #hack - pass it in!
+
+        #start an impacts file here
+        now = datetime.now()
+        impacts_file = output_folder.joinpath("impacts_"+now.strftime("%Y%m%d_%H%M%S")+".csv")
+
+        numIterations = 3 #hack - pass it in!
         try:
-            #look for betas in the environment variables, which lets us skip the lengthy calibration stage
-            betaRoad = float(os.getenv("BetaRoad", default='0.0'))
-            betaBus = float(os.getenv("BetaBus", default='0.0'))
-            betaRail = float(os.getenv("BetaRail", default='0.0'))
+            with impacts_file.open('w') as f:
+                #look for betas in the environment variables, which lets us skip the lengthy calibration stage
+                betaRoad = float(os.getenv("BetaRoad", default='0.0'))
+                betaBus = float(os.getenv("BetaBus", default='0.0'))
+                betaRail = float(os.getenv("BetaRail", default='0.0'))
             
-            qm3_base = calibrate(betaRoad,betaBus,betaRail) #calibrate our model - only if no betas passed in
+                qm3_base = calibrate(betaRoad,betaBus,betaRail) #calibrate our model - only if no betas passed in
 
-            #todo: open a log file here...
-            impacts_file.write_text("idx,depth")
-            for i in range(0,numIterations):
-                qm3 = qm3_base.deepcopy() #clone a new QUANT model so we can apply changes and difference with the baseline
-
-                ###scenario changes section here - make up a scenario
-                OiDjHash = {} #hash of zonei number as key, with array [Oi,Dj] new totals as value
-                #todo: you need to make up some network changes here
-                networkChanges = {
-                    DirectNetworkChange(2,0,1,30.0) #mode=2,i=0,j=1,r=30s
-                }
-                ###end of scenario changes section
-
-                ###scenario run section
-                #NOTE: runWithChanges will alter dis matrices - just in case you're doing multiple runs
-                qm3.runWithChanges(OiDjHash,networkChanges,False)
-                ###end scenario run section
-
-                ###write out impacts section
-                #now output results - impacts - score?
-                impacts = ImpactStatistics()
-                impacts.compute(qm3_base,qm3)
-                impacts_file.write_text(
-                    '{0},{1},{2},{3}'
-                    .format(i,impacts.deltaDk[0],impacts.deltaDk[1],impacts.deltaDk[2])
+                #open a log file here...
+                #todo: you need to write out what the scenario is too!
+                f.write(
+                    "idx,"
+                    +"Ck1Road,Ck1Bus,Ck1Rail,Ck2Road,Ck2Bus,Ck2Rail,CkDiffRoad,CkDiffBus,CkDiffRail,"
+                    +"Lk1Road,Lk1Bus,Lk1Rail,Lk2Road,Lk2Bus,Lk2Rail,deltaLkRoad,deltaLkBus,deltaLkRail\n"
                 )
-                #writer.Write("idx,score,depth,combs,netChgRoad,netChgBus,netChgRail,"
-                # + "netSavedMinsRoad,netSavedMinsBus,netSavedMinsRail,"
-                # + "savedMinsRoad,savedMinsBus,savedMinsRail,"
-                # +"deltaDkRoad,deltaDkBus,deltaDkRail,"
-                # +"deltaLkRoad,deltaLkBus,deltaLkRail,"+modeText+"NetworkKM,LBar,"
-                # +"ATI,ATIPop");
-            #end for i
+                for i in range(0,numIterations):
+                    qm3 = qm3_base.deepcopy() #clone a new QUANT model so we can apply changes and difference with the baseline
+
+                    ###scenario changes section here - make up a scenario
+                    OiDjHash = {} #hash of zonei number as key, with array [Oi,Dj] new totals as value
+                    #todo: you need to make up some network changes here
+                    networkChanges = {
+                        DirectNetworkChange(2,0,1,30.0) #mode=2,i=0,j=1,r=30s
+                    }
+                    ###end of scenario changes section
+
+                    ###scenario run section
+                    #NOTE: runWithChanges will alter dis matrices - just in case you're doing multiple runs
+                    qm3.runWithChanges(OiDjHash,networkChanges,False)
+                    ###end scenario run section
+
+                    ###write out impacts section
+                    #now output results - impacts - score?
+                    impacts = ImpactStatistics()
+                    impacts.compute(qm3_base,qm3,[ Lij_road, Lij_bus, Lij_rail ])
+                    f.write(
+                        ('{0},' #idx
+                        '{1},{2},{3},' #Ck1
+                        '{4},{5},{6},' #Ck2
+                        '{7},{8},{9},' #CkDiff
+                        '{10},{11},{12},' #Lk1
+                        '{13},{14},{15},' #Lk2
+                        '{16},{17},{18}' #deltaLk
+                        '\n'
+                        )
+                        .format(
+                            i,
+                            impacts.Ck1[0],impacts.Ck1[1],impacts.Ck1[2],
+                            impacts.Ck2[0],impacts.Ck2[1],impacts.Ck2[2],
+                            impacts.CkDiff[0],impacts.CkDiff[1],impacts.CkDiff[2],
+                            impacts.Lk1[0],impacts.Lk1[1],impacts.Lk1[2],
+                            impacts.Lk2[0],impacts.Lk2[1],impacts.Lk2[2],
+                            impacts.deltaLk[0],impacts.deltaLk[1],impacts.deltaLk[2]
+                        )
+                    )
+                    #this is what QUANT3 AI does
+                    #writer.Write("idx,score,depth,combs,netChgRoad,netChgBus,netChgRail,"
+                    # + "netSavedMinsRoad,netSavedMinsBus,netSavedMinsRail,"
+                    # + "savedMinsRoad,savedMinsBus,savedMinsRail,"
+                    # +"deltaDkRoad,deltaDkBus,deltaDkRail,"
+                    # +"deltaLkRoad,deltaLkBus,deltaLkRail,"+modeText+"NetworkKM,LBar,"
+                    # +"ATI,ATIPop");
+                #end for i
+            #end with f
         except Exception as e:
             logging.error("Exception: ", exc_info=True)
             print(e)

@@ -1,8 +1,12 @@
 dirs:
-  #ModelRunsDir: "C:\\richard\\github\\QUANT2\\quant2\\wwwroot\\model-runs\\EWS"
+  DAFNIInputsDir: /data/inputs
+  DAFNIOutputsDir: /data/outputs
+  LocalInputsDir: inputs
+  LocalOutputsDir: outputs 
+  #ModelRunsDir: "C:\\r\\github\\QUANT2\\quant2\\wwwroot\\model-runs\\EWS"
   #ModelRunsDir: "/data/inputs/model-runs"
-  ModelRunsDir: model-runs/EWS
-  OutputDir: ""
+  DAFNIModelRunsDir: model-runs
+  LocalModelRunsDir: model-runs
 matrices:
   TObs1: "TObs_1.bin"
   TObs2: "TObs_2.bin"
@@ -10,6 +14,10 @@ matrices:
   dis_roads: "dis_roads_min.bin"
   dis_buses: "dis_bus_min.bin"
   dis_rail: "dis_gbrail_min.bin"
+  dis_crowfly: "dis_crowfly_KM.bin"
+  dis_crowfly_vertex_roads_KM: "dis_crowfly_vertex_roads_KM.bin"
+  dis_crowfly_vertex_bus_KM: "dis_crowfly_vertex_bus_KM.bin"
+  dis_crowfly_vertex_gbrail_KM: "dis_crowfly_vertex_gbrail_KM.bin"
 tables:
   GreenBeltConstraints: "GreenBeltConstraints.xml"
   Constraints_B: "Constraints_B.csv"

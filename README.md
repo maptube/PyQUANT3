@@ -20,6 +20,7 @@ EWS_ZoneCodes.csv Lookup between zone MSOA/IZ code and zone numbers needed for t
 
 # Command Line Options
 -h, --help prints help text
+-d, --dafni if this option is present, then assume we're running on DAFNI and set the IsOnDAFNI environment option, otherwise we're running locally in debug mode
 -o, --opcode pass in --opcode CALIBRATE | RUN to perform a calibration or a scenario run
 --betaroad beta value for road mode from outputs/calibration.yaml e.g. --betaroad 0.1316692928026544 
 --betabus beta value for bus mode from outputs/calibration.yaml e.g. --betabus 0.0728867427898217
