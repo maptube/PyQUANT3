@@ -52,6 +52,7 @@ from utils import loadQUANTMatrix
 from models.SingleOrigin import SingleOrigin
 from models.DirectNetworkChange import DirectNetworkChange
 from impacts.ImpactStatistics import ImpactStatistics
+from networks.NetworkUtils import NetworkUtils
 
 ################################################################################
 
@@ -243,9 +244,9 @@ def main(argv):
         now = datetime.now()
         impacts_file = output_folder.joinpath("impacts_"+now.strftime("%Y%m%d_%H%M%S")+".csv")
 
-        numIterations = 3 #hack - pass it in!
+        numIterations = 1 #hack - pass it in!
         try:
-            with impacts_file.open('w') as f:
+            with impacts_file.open('w') as f: #open an impacts log file here...
                 #look for betas in the environment variables, which lets us skip the lengthy calibration stage
                 betaRoad = float(os.getenv("BetaRoad", default='0.0'))
                 betaBus = float(os.getenv("BetaBus", default='0.0'))
@@ -253,12 +254,17 @@ def main(argv):
             
                 qm3_base = calibrate(betaRoad,betaBus,betaRail) #calibrate our model - only if no betas passed in
 
-                #open a log file here...
-                #todo: you need to write out what the scenario is too!
+                #write the header line to the impacts file
                 f.write(
                     "idx,"
                     +"Ck1Road,Ck1Bus,Ck1Rail,Ck2Road,Ck2Bus,Ck2Rail,CkDiffRoad,CkDiffBus,CkDiffRail,"
-                    +"Lk1Road,Lk1Bus,Lk1Rail,Lk2Road,Lk2Bus,Lk2Rail,deltaLkRoad,deltaLkBus,deltaLkRail\n"
+                    +"Lk1Road,Lk1Bus,Lk1Rail,Lk2Road,Lk2Bus,Lk2Rail,deltaLkRoad,deltaLkBus,deltaLkRail,"
+                    +"scenarioLinkDepthRoad, scenarioLinkDepthBus, scenarioLinkDepthRail,"
+                    +"scenarioLinkKMRoad, scenarioLinkKMBus, scenarioLinkKMRail,"
+                    +"scenarioLinkSavedSecsRoad, scenarioLinkSavedSecsBus, scenarioLinkSavedSecsRail,"
+                    +"nMinusRoad, nMinusBus, nMinusRail,"
+                    +"SavedSecsRoad, savedSecsBus, savedSecsRail,"
+                    +"net_mode, net_i, net_j, net_secs\n"
                 )
                 for i in range(0,numIterations):
                     qm3 = qm3_base.deepcopy() #clone a new QUANT model so we can apply changes and difference with the baseline
@@ -266,8 +272,9 @@ def main(argv):
                     ###scenario changes section here - make up a scenario
                     OiDjHash = {} #hash of zonei number as key, with array [Oi,Dj] new totals as value
                     #todo: you need to make up some network changes here
+                    r = NetworkUtils.linkKMPerHourToSeconds(0,1,Lij_rail,100.0) #0->1 at 100KPH
                     networkChanges = {
-                        DirectNetworkChange(2,0,1,30.0) #mode=2,i=0,j=1,r=30s
+                        DirectNetworkChange(2,0,1,r)  #mode=2,i=0,j=1,r=runlink in seconds
                     }
                     ###end of scenario changes section
 
@@ -279,7 +286,7 @@ def main(argv):
                     ###write out impacts section
                     #now output results - impacts - score?
                     impacts = ImpactStatistics()
-                    impacts.compute(qm3_base,qm3,[ Lij_road, Lij_bus, Lij_rail ])
+                    impacts.compute(qm3_base,qm3,[ Lij_road, Lij_bus, Lij_rail ], networkChanges)
                     f.write(
                         ('{0},' #idx
                         '{1},{2},{3},' #Ck1
@@ -287,8 +294,12 @@ def main(argv):
                         '{7},{8},{9},' #CkDiff
                         '{10},{11},{12},' #Lk1
                         '{13},{14},{15},' #Lk2
-                        '{16},{17},{18}' #deltaLk
-                        '\n'
+                        '{16},{17},{18},' #deltaLk
+                        '{19},{20},{21},' #scenarioLinkDepth_k
+                        '{22},{23},{24},' #scenarioLinkKM_K
+                        '{25},{26},{27},' #scenarioLinkSavedSecs_K
+                        '{28},{29},{30},' #nMinus_K
+                        '{31},{32},{33}' #savedSecs_K
                         )
                         .format(
                             i,
@@ -297,9 +308,18 @@ def main(argv):
                             impacts.CkDiff[0],impacts.CkDiff[1],impacts.CkDiff[2],
                             impacts.Lk1[0],impacts.Lk1[1],impacts.Lk1[2],
                             impacts.Lk2[0],impacts.Lk2[1],impacts.Lk2[2],
-                            impacts.deltaLk[0],impacts.deltaLk[1],impacts.deltaLk[2]
+                            impacts.deltaLk[0],impacts.deltaLk[1],impacts.deltaLk[2],
+                            impacts.scenarioLinkDepth_k[0], impacts.scenarioLinkDepth_k[1], impacts.scenarioLinkDepth_k[2],
+                            impacts.scenarioLinkKM_k[0], impacts.scenarioLinkKM_k[1], impacts.scenarioLinkKM_k[2],
+                            impacts.scenarioLinkSavedSecs_k[0], impacts.scenarioLinkSavedSecs_k[1], impacts.scenarioLinkSavedSecs_k[2],
+                            impacts.nMinus_k[0], impacts.nMinus_k[1], impacts.nMinus_k[2],
+                            impacts.savedSecs_k[0], impacts.savedSecs_k[1], impacts.savedSecs_k[2]
                         )
                     )
+                    #now write out the game state: mode,i,j,secs for each network change
+                    for nc in networkChanges:
+                        f.write(',{0},{1},{2},{3}'.format(nc.mode,nc.originZonei,nc.destinationZonei,nc.absoluteTimeSecs))
+
                     #this is what QUANT3 AI does
                     #writer.Write("idx,score,depth,combs,netChgRoad,netChgBus,netChgRail,"
                     # + "netSavedMinsRoad,netSavedMinsBus,netSavedMinsRail,"
