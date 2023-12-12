@@ -19,6 +19,7 @@ class ImpactStatistics:
         self.scenarioLinkDepth_k = [] #this is how many changed links there are on each mode
         self.scenarioLinkKM_k = [] #distances of added links by mode (KM)
         self.scenarioLinkSavedSecs_k = [] #times saved by new added linsk by mode (secs)
+        self.LBar_k = [] #average geographic spread in KM of scenario nodes
 
         #scenario network changes - these are results of the APSP algorithm on network structure
         self.nMinus_k = []
@@ -84,6 +85,55 @@ class ImpactStatistics:
 ################################################################################
 
     """
+    computeLBar
+    Compute how far apart the network changes are for each mode individually.
+    Basically, you make a list of every origin and destination node, then
+    take every combination of every node to every other node and sum the
+    distance. Then divide by the number of combinations and that's a measure
+    of the geographic spread of the mode changes. Repeat for each mode.
+    @param networkChanges The scenario (list of DirectNetworkChange)
+    @param dijKM_k distance matrix in km with all three modes (the crowfly vertex KM one)
+    @returns average distance between scenario changes nodes (NOTE: =0 if there are no changes on a mode)
+    """
+    def computeLBar(self, networkChanges, dijKM_k):
+        NumModes = len(dijKM_k)
+        LBar_k = [0.0 for k in range(0,NumModes)]
+        
+        for k in range(0,NumModes):
+            nodes = {}
+            for nc in networkChanges:
+                if nc.mode==k:
+                    i = nc.originZonei
+                    j = nc.destinationZonei
+                    if not i in nodes:
+                        nodes[i]=True # no hashset, so we're using a hash map - values are irrelevant
+                    if not j in nodes:
+                        nodes[j]=True
+                #end if k=mode
+            #end for nc
+
+            #OK, we've got a list of nodes, we now need to permute every combination
+            #and add up the distances
+            sum=0.0
+            count=0
+            for i in nodes:
+                for j in nodes:
+                    if i!=j:
+                        count+=1
+                        sum+=dijKM_k[k][i,j]
+                    #end if
+                #end for j
+            #end for i
+            if count>0:
+                LBar_k[k] = sum/count
+            else:
+                LBar_k[k]=0
+        #end for k
+        return LBar_k
+
+################################################################################
+
+    """
     computeNetworkStatistics
     This is derived network statistics (secondary) as a result of the primary
     changes from the network scenario links that are added.
@@ -138,6 +188,9 @@ class ImpactStatistics:
         #compute scenario link statistics - measures changes made by the network changes directly
         self.scenarioLinkDepth_k, self.scenarioLinkKM_k, self.scenarioLinkSavedSecs_k \
             = self.computeScenarioLinkStatistics(networkChanges, qm3_base.Cij, dijKM)
+        
+        #compute LBar, geographic spread of scenario
+        self.LBar_k = self.computeLBar(networkChanges, dijKM)
 
         #compute scenario network statistics - measures number of faster trips and saved time (secondary changes as a result of APSP)
         self.nMinus_k, self.savedSecs_k = self.computeNetworkStatistics(qm3_base.Cij, qm3.Cij)

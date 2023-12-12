@@ -262,6 +262,7 @@ def main(argv):
                     +"scenarioLinkDepthRoad, scenarioLinkDepthBus, scenarioLinkDepthRail,"
                     +"scenarioLinkKMRoad, scenarioLinkKMBus, scenarioLinkKMRail,"
                     +"scenarioLinkSavedSecsRoad, scenarioLinkSavedSecsBus, scenarioLinkSavedSecsRail,"
+                    +"LBarRoad, LBarBus, LBarRail,"
                     +"nMinusRoad, nMinusBus, nMinusRail,"
                     +"SavedSecsRoad, savedSecsBus, savedSecsRail,"
                     +"net_mode, net_i, net_j, net_secs\n"
@@ -298,8 +299,9 @@ def main(argv):
                         '{19},{20},{21},' #scenarioLinkDepth_k
                         '{22},{23},{24},' #scenarioLinkKM_K
                         '{25},{26},{27},' #scenarioLinkSavedSecs_K
-                        '{28},{29},{30},' #nMinus_K
-                        '{31},{32},{33}' #savedSecs_K
+                        '{28},{29},{30},' #LBar_k
+                        '{31},{32},{33},' #nMinus_K
+                        '{34},{35},{36}' #savedSecs_K
                         )
                         .format(
                             i,
@@ -312,6 +314,7 @@ def main(argv):
                             impacts.scenarioLinkDepth_k[0], impacts.scenarioLinkDepth_k[1], impacts.scenarioLinkDepth_k[2],
                             impacts.scenarioLinkKM_k[0], impacts.scenarioLinkKM_k[1], impacts.scenarioLinkKM_k[2],
                             impacts.scenarioLinkSavedSecs_k[0], impacts.scenarioLinkSavedSecs_k[1], impacts.scenarioLinkSavedSecs_k[2],
+                            impacts.LBar_k[0], impacts.LBar_k[1], impacts.LBar_k[2],
                             impacts.nMinus_k[0], impacts.nMinus_k[1], impacts.nMinus_k[2],
                             impacts.savedSecs_k[0], impacts.savedSecs_k[1], impacts.savedSecs_k[2]
                         )
