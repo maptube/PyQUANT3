@@ -41,6 +41,7 @@ import sys
 import os
 import logging
 from datetime import datetime
+import time
 import yaml
 import getopt
 from pathlib import Path
@@ -53,6 +54,7 @@ from models.SingleOrigin import SingleOrigin
 from models.DirectNetworkChange import DirectNetworkChange
 from impacts.ImpactStatistics import ImpactStatistics
 from networks.NetworkUtils import NetworkUtils
+from scenarios.OneLink import OneLinkLimitR
 
 ################################################################################
 
@@ -244,7 +246,7 @@ def main(argv):
         now = datetime.now()
         impacts_file = output_folder.joinpath("impacts_"+now.strftime("%Y%m%d_%H%M%S")+".csv")
 
-        numIterations = 1 #hack - pass it in!
+        numIterations = 10 #hack - pass it in!
         try:
             with impacts_file.open('w') as f: #open an impacts log file here...
                 #look for betas in the environment variables, which lets us skip the lengthy calibration stage
@@ -267,22 +269,39 @@ def main(argv):
                     +"SavedSecsRoad, savedSecsBus, savedSecsRail,"
                     +"net_mode, net_i, net_j, net_secs\n"
                 )
+                N = len(df_ZoneCodes.index)
+                linkSpeed = 100.0 #KPH
+                scenarioGenerator = OneLinkLimitR(20,N,2,Lij_rail)
+                #scenarioGenerator.j=120 #carry on where we left off
                 for i in range(0,numIterations):
+                    print('iteration '+str(i))
+                    now = datetime.now()
+                    logging.info('Iteration '+str(i)+' start: '+now.strftime("%Y%m%d_%H%M%S"))
+                    
                     qm3 = qm3_base.deepcopy() #clone a new QUANT model so we can apply changes and difference with the baseline
 
                     ###scenario changes section here - make up a scenario
                     OiDjHash = {} #hash of zonei number as key, with array [Oi,Dj] new totals as value
                     #todo: you need to make up some network changes here
-                    r = NetworkUtils.linkKMPerHourToSeconds(0,1,Lij_rail,100.0) #0->1 at 100KPH
-                    networkChanges = {
-                        DirectNetworkChange(2,0,1,r)  #mode=2,i=0,j=1,r=runlink in seconds
-                    }
+                    #r = NetworkUtils.linkKMPerHourToSeconds(0,1,Lij_rail,100.0) #0->1 at 100KPH
+                    #networkChanges = {
+                    #    DirectNetworkChange(2,0,1,r)  #mode=2,i=0,j=1,r=runlink in seconds
+                    #}
+                    networkChanges = scenarioGenerator.next()
+                    for nc in networkChanges:
+                        r = NetworkUtils.linkKMPerHourToSeconds(nc.originZonei,nc.destinationZonei,Lij_rail,linkSpeed)
+                        nc.absoluteTimeSecs = r
                     ###end of scenario changes section
 
                     ###scenario run section
+                    #start_time = time.process_time()
                     #NOTE: runWithChanges will alter dis matrices - just in case you're doing multiple runs
                     qm3.runWithChanges(OiDjHash,networkChanges,False)
+                    #end_time = time.process_time()
                     ###end scenario run section
+
+                    now = datetime.now()
+                    logging.info('Iteration '+str(i)+' model finished, starting impact statistics: '+now.strftime("%Y%m%d_%H%M%S"))
 
                     ###write out impacts section
                     #now output results - impacts - score?
@@ -322,6 +341,7 @@ def main(argv):
                     #now write out the game state: mode,i,j,secs for each network change
                     for nc in networkChanges:
                         f.write(',{0},{1},{2},{3}'.format(nc.mode,nc.originZonei,nc.destinationZonei,nc.absoluteTimeSecs))
+                    f.write('\n')
 
                     #this is what QUANT3 AI does
                     #writer.Write("idx,score,depth,combs,netChgRoad,netChgBus,netChgRail,"
@@ -330,6 +350,10 @@ def main(argv):
                     # +"deltaDkRoad,deltaDkBus,deltaDkRail,"
                     # +"deltaLkRoad,deltaLkBus,deltaLkRail,"+modeText+"NetworkKM,LBar,"
                     # +"ATI,ATIPop");
+
+                    now = datetime.now()
+                    logging.info('Iteration '+str(i)+' finish: '+now.strftime("%Y%m%d_%H%M%S"))
+
                 #end for i
             #end with f
         except Exception as e:
