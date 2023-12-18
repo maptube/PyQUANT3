@@ -228,7 +228,7 @@ def main(argv):
     if opcode=='CALIBRATE':
         logging.info('calibrate')
         try:
-            calibrate()
+            calibrate(0.0,0.0,0.0) #pass in zeros for betas to trigger a full calibration to find the real betas
             #todo: need to write out predicted matrices here?
             #finished
             #now = datetime.now()
@@ -272,7 +272,7 @@ def main(argv):
                 N = len(df_ZoneCodes.index)
                 linkSpeed = 100.0 #KPH
                 scenarioGenerator = OneLinkLimitR(20,N,2,Lij_rail)
-                #scenarioGenerator.j=120 #carry on where we left off
+                #scenarioGenerator.j=335 #carry on where we left off
                 for i in range(0,numIterations):
                     print('iteration '+str(i))
                     now = datetime.now()

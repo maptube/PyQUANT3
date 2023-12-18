@@ -489,8 +489,12 @@ class SingleOrigin:
                 #compute secondary links - both ways around
                 #int linkCount1, linkCount2;
                 #float totalMinsSaved1, totalMinsSaved2;
+                start_time = time.process_time()
                 linkCount1, totalMinsSaved1 = ModifiedZonesAPSP.computeModAPSP(self.Cij[dnc.mode], dnc.originZonei, dnc.destinationZonei, dnc.absoluteTimeSecs / 60.0)
+                end_time1 = time.process_time()
                 linkCount2, totalMinsSaved2 = ModifiedZonesAPSP.computeModAPSP(self.Cij[dnc.mode], dnc.destinationZonei, dnc.originZonei, dnc.absoluteTimeSecs / 60.0)
+                end_time2 = time.process_time()
+                print("ModifiedZonesAPSP:: ASPS1="+str(end_time1-start_time)+" APSP2="+str(end_time2-end_time1)+" secs")
                 count += linkCount1 + linkCount2
                 countMode[dnc.mode] += linkCount1 + linkCount2
                 #totalMinsSaved = totalMinsSaved1+totalMinsSaved2; //if you need the minutes saved...

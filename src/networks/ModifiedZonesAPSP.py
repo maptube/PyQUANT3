@@ -40,10 +40,11 @@ class ModifiedZonesAPSP:
                 #if (j == Destination) continue; NO! don't do this!
                 dj = dis[Destination, j]
                 #if io+dj<dist continue as you can't win
+                if io>dis[i,j] or dj>dis[i,j] or (io+dj)>dis[i,j]: continue #impossible for it to be lower
                 #test here
                 dist = io + NewCost + dj
                 if dist<dis[i,j]:
-                    totalMinsSaved += dis[i, j] - dist; #yes, saved=current-new shorter
+                    totalMinsSaved += dis[i, j] - dist #yes, saved=current-new shorter
                     dis[i, j] = dist
                     count+=1
                 #end if

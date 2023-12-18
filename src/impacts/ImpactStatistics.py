@@ -149,8 +149,8 @@ class ImpactStatistics:
         savedSecs_k = [0.0 for k in range(0,NumModes)]
         for k in range(0,NumModes):
             nMinus_k[k]=np.count_nonzero(Cij2[k] < Cij1[k])
-            diff = Cij2[k]-Cij1[k]
-            diff = np.where(diff>0,diff,0) #filter out any negative values
+            diff = Cij1[k]-Cij2[k] #it's saved seconds, and 2<1 if you're saving secs and it's quicker
+            diff = np.where(diff>0,diff,0) #filter out any negative values - savings are all positive
             savedSecs_k[k] =np.sum(diff)
         #end for
         return nMinus_k, savedSecs_k
