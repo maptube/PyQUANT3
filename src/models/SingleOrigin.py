@@ -1,3 +1,4 @@
+from numba import jit
 import numpy as np
 from math import exp, fabs
 from sys import float_info
@@ -5,6 +6,7 @@ import time
 import copy
 
 from networks.ModifiedZonesAPSP import ModifiedZonesAPSP
+
 
 """
 Single destination constrained gravity model
@@ -36,6 +38,8 @@ class SingleOrigin:
     @param name="cij" NDArray
     @returns float
     """
+    #@jit(nopython=True)
+    #@staticmethod
     def calculateCBar(self,Tij,cij):
         #(M, N) = np.shape(Tij)
         #CNumerator = 0.0
@@ -51,6 +55,10 @@ class SingleOrigin:
         CDenominator2 = np.sum(Tij)
         CBar2=CNumerator2/CDenominator2
         #print("CBar2=",CBar2)
+        #cupy example
+        #CNumerator2 = cp.sum(Tij*cij)
+        #CDenominator2 = cp.sum(Tij)
+        #CBar2 = CNumerator2/CDenominator2
 
         return CBar2
 
@@ -60,17 +68,39 @@ class SingleOrigin:
     deepcopy
     Return a deep copy version of self
     """
+    #@jit(nopython=True)
     def deepcopy(self):
         qm3 = SingleOrigin()
         qm3.numModes = self.numModes
         qm3.isUsingConstraints = self.isUsingConstraints
         qm3.constraints = copy.deepcopy(self.constraints)
         qm3.Beta = copy.deepcopy(self.Beta)
-        qm3.TObs = copy.deepcopy(self.TObs)
-        qm3.TPred = copy.deepcopy(self.TPred)
-        qm3.Cij = copy.deepcopy(self.Cij)
+        #qm3.Beta = [ self.Beta[k] for k in range(0,self.numModes) ]
+        #b = np.array(a, copy=True) or b = np.copy(a) ???
+        #qm3.TObs = copy.deepcopy(self.TObs)
+        #qm3.TObs = [ np.array(self.TObs[k],copy=True) for k in range(0,self.numModes) ]
+        qm3.TObs = [ np.copy(self.TObs[k]) for k in range(0,self.numModes) ]
+        #qm3.TObs = [deepcopyarray(self.TObs[k]) for k in range(0,self.numModes)]
+        #qm3.TPred = copy.deepcopy(self.TPred)
+        #qm3.TPred = [ np.array(self.TPred[k],copy=True) for k in range(0,self.numModes) ]
+        qm3.TPred = [ np.copy(self.TPred[k]) for k in range(0,self.numModes) ]
+        #qm3.TPred = [ deepcopyarray(self.TPred[k]) for k in range(0,self.numModes) ]
+        #qm3.Cij = copy.deepcopy(self.Cij)
+        #qm3.Cij = [ np.array(self.Cij[k],copy=True) for k in range(0,self.numModes) ]
+        qm3.Cij = [ np.copy(self.Cij[k]) for k in range(0,self.numModes) ]
+        #qm3.Cij = [ deepcopyarray(self.Cij[k]) for k in range(0,self.numModes) ]
+        
+        #qm3.TObs = [np.array(1) for k in range(0,self.numModes)]
+        #qm3.TPred = [np.array(1) for k in range(0,self.numModes)]
+        #qm3.Cij = [np.array(1) for k in range(0,self.numModes)]
+        #for k in range(0,3):
+        #    qm3.TObs[k] = np.copy(self.TObs[k])
+        #    qm3.TPred[k] = np.copy(self.TPred[k])
+        #    qm3.Cij[k] = np.copy(self.Cij[k])
+        
         qm3.B = copy.deepcopy(self.B)
         return qm3
+
 
 ###############################################################################
 
@@ -81,7 +111,9 @@ class SingleOrigin:
     to 1, then it can be used exclusively. This function is mainly used for
     testing with the TensorFlow and other implementations.
     """
-    def calculateOi(self,Tij):
+    #@jit(nopython=True)
+    #@staticmethod
+    def calculateOi(Tij: np.matrix) -> np.array:
         (M, N) = np.shape(Tij)
         #OiObs
         Oi = np.zeros(N)
@@ -104,7 +136,9 @@ class SingleOrigin:
     to 1, then it can be used exclusively. This function is mainly used for
     testing with the TensorFlow and other implementations.
     """
-    def calculateDj(self,Tij):
+    #@jit(nopython=True)
+    #@staticmethod
+    def calculateDj(Tij: np.matrix) -> np.array:
         (M, N) = np.shape(Tij)
         #DjObs
         Dj = np.zeros(N)
@@ -128,6 +162,7 @@ class SingleOrigin:
     PRE: betas, TObs and Cij all set
     POST: TPred all set
     """
+    #@jit(nopython=True)
     def fastComputePredicted(self):
         (M, N) = np.shape(self.TObs[0])
         
@@ -147,7 +182,7 @@ class SingleOrigin:
         B = [1.0 for i in range(0,N)] #hack
         Z = [0.0 for i in range(0,N)]
         for j in range(0,N):
-            Z[j] = float_info.max
+            Z[j] = 1.7976931348623157e+308 #float_info.max
             if self.isUsingConstraints:
                 if self.constraints[j] >= 1.0: #constraints array taking place of Gj (Green Belt) in documentation
                     #Gj=1 means 0.8 of MSOA land is green belt, so can't be built on
@@ -180,6 +215,7 @@ class SingleOrigin:
     and over again while you tune the betas, so I guess it's run.
     @returns nothing
     """
+    @jit(nopython=True)
     def run(self):
         (M, N) = np.shape(self.TObs[0])
         
@@ -457,7 +493,7 @@ class SingleOrigin:
         #constraints initialisation - this is the same as the calibration, except that the B[j] values are initially taken from the calibration, while Z[j] is initialised from Dj[j] as before.
         Z = [0.0 for j in range(0,N)]
         for j in range(0,N):
-            Z[j] = float_info.max
+            Z[j] = 1.7976931348623157e+308 #float_info.max
             if self.isUsingConstraints:
                 if self.constraints[j] >= 1.0: #constraints array taking place of Gj (Green Belt) in documentation
                     #Gj=1 means a high enough percentage of MSOA land is green belt, so can't be built on

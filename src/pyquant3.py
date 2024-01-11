@@ -39,6 +39,8 @@ ZoneCodes - d5faa9b9-8a4a-421c-a0bd-cd279ab2aa68 (not needed?)
 #libraries
 import sys
 import os
+import pickle
+import copy
 import logging
 from datetime import datetime
 import time
@@ -49,7 +51,7 @@ import numpy as np
 import pandas as pd
 
 #local imports
-from utils import loadQUANTMatrix
+from utils import loadQUANTMatrix, loadQUANTMatrixFAST
 from models.SingleOrigin import SingleOrigin
 from models.DirectNetworkChange import DirectNetworkChange
 from impacts.ImpactStatistics import ImpactStatistics
@@ -65,10 +67,13 @@ This wouldn't normally be used in production, but it allows you to pass in
 environment variables when debugging e.g. --opcode=CALIBRATE
 """
 def parseArgs(argv):
-    opts,args = getopt.getopt(argv, 'hdo:', ['help','dafni','opcode=','betaroad=','betabus=','betarail='])
+    opts,args = getopt.getopt(argv,
+            'hdo:i:j:',
+            ['help','dafni','opcode=','betaroad=','betabus=','betarail=','numiterations=','mode=','radiuskm=','speedkph=','starti=','startj='])
     for opt, arg in opts:
         if opt in('-h','--help'):
             print ('pyquant3.py -o [CALIBRATE|RUN] [--betaroad] [--betabus] [--beta rail]')
+            print('[--numiterations=10] [--radiuskm=5] [--mode=2] [--speedkph=100] [-i 0 | --starti=0] [-j 0 | --startj=0]')
             sys.exit()
         elif opt in ('-d','--dafni'):
             os.environ['IsOnDAFNI']=True
@@ -80,6 +85,18 @@ def parseArgs(argv):
             os.environ['BetaBus']=arg
         elif opt in ('--betarail'):
             os.environ['BetaRail']=arg
+        elif opt in ('--numiterations'):
+            os.environ['SG_NumIterations']=arg
+        elif opt in ('--mode'):
+            os.environ['SG_Mode']=arg    
+        elif opt in ('--radiuskm'):
+            os.environ['SG_RadiusKM']=arg
+        elif opt in ('--speedkph'):
+            os.environ['SG_SpeedKPH']=arg    
+        elif opt in ('-i','--starti'):
+            os.environ['SG_Start_i']=arg
+        elif opt in ('-j','--startj'):
+            os.environ['SG_Start_j']=arg
 #end def
 
 ################################################################################
@@ -195,17 +212,17 @@ def main(argv):
 
     #load matrices - from local files
     try:
-        Tij_Obs_road = loadQUANTMatrix(os.path.join(ModelRunsDir,TijObsRoadFilename))
-        Tij_Obs_bus = loadQUANTMatrix(os.path.join(ModelRunsDir,TijObsBusFilename))
-        Tij_Obs_rail = loadQUANTMatrix(os.path.join(ModelRunsDir,TijObsRailFilename))
+        Tij_Obs_road = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,TijObsRoadFilename))
+        Tij_Obs_bus = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,TijObsBusFilename))
+        Tij_Obs_rail = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,TijObsRailFilename))
         #and costs
-        Cij_road = loadQUANTMatrix(os.path.join(ModelRunsDir,DisRoadFilename))
-        Cij_bus = loadQUANTMatrix(os.path.join(ModelRunsDir,DisBusFilename))
-        Cij_rail = loadQUANTMatrix(os.path.join(ModelRunsDir,DisGBRailFilename))
+        Cij_road = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,DisRoadFilename))
+        Cij_bus = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,DisBusFilename))
+        Cij_rail = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,DisGBRailFilename))
         #and transport KM distances
-        Lij_road = loadQUANTMatrix(os.path.join(ModelRunsDir,DisCrowflyVertexRoadsKMFilename))
-        Lij_bus = loadQUANTMatrix(os.path.join(ModelRunsDir,DisCrowflyVertexBusKMFilename))
-        Lij_rail = loadQUANTMatrix(os.path.join(ModelRunsDir,DisCrowflyVertexGBRailKMFilename))
+        Lij_road = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,DisCrowflyVertexRoadsKMFilename))
+        Lij_bus = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,DisCrowflyVertexBusKMFilename))
+        Lij_rail = loadQUANTMatrixFAST(os.path.join(ModelRunsDir,DisCrowflyVertexGBRailKMFilename))
     except Exception as e:
         logging.error("Exception in matrix loading: ", exc_info=True)
         print(e)
@@ -242,11 +259,24 @@ def main(argv):
         #basic plan: calibrate (or hard code), make up a scenario, run scenario, measure impacts [repeat]
         logging.info('run')
 
+        #load and check for SG (scenario generator) environment variables
+        numIterations = int(os.getenv('SG_NumIterations','10'))
+        mode = int(os.getenv('SG_Mode','0'))
+        radiusKM = int(os.getenv('SG_RadiusKM','5'))
+        speedKPH = int(os.getenv('SG_SpeedKPH','100'))
+        start_i = int(os.getenv('SG_Start_i','0'))
+        start_j = int(os.getenv('SG_Start_j','-1'))
+        logging.info('SG_NumIterations='+str(numIterations))
+        logging.info('SG_Mode='+str(mode))
+        logging.info('SG_RadiusKM='+str(radiusKM))
+        logging.info('SG_SpeedKPH='+str(speedKPH))
+        logging.info('SG_Start_i='+str(start_i))
+        logging.info('SG_Start_j='+str(start_j))
+
         #start an impacts file here
         now = datetime.now()
         impacts_file = output_folder.joinpath("impacts_"+now.strftime("%Y%m%d_%H%M%S")+".csv")
 
-        numIterations = 10 #hack - pass it in!
         try:
             with impacts_file.open('w') as f: #open an impacts log file here...
                 #look for betas in the environment variables, which lets us skip the lengthy calibration stage
@@ -255,6 +285,9 @@ def main(argv):
                 betaRail = float(os.getenv("BetaRail", default='0.0'))
             
                 qm3_base = calibrate(betaRoad,betaBus,betaRail) #calibrate our model - only if no betas passed in
+                with open('outputs/qm3_base.bin', 'wb') as qfile:
+                    pickle.dump(qm3_base, qfile)
+                saveCij = [ np.copy(qm3_base.Cij[k]) for k in range(0,qm3_base.numModes)] #save the pre-scenario Cij matrix as we're about to change it
 
                 #write the header line to the impacts file
                 f.write(
@@ -270,15 +303,30 @@ def main(argv):
                     +"net_mode, net_i, net_j, net_secs\n"
                 )
                 N = len(df_ZoneCodes.index)
-                linkSpeed = 100.0 #KPH
-                scenarioGenerator = OneLinkLimitR(20,N,2,Lij_rail)
-                #scenarioGenerator.j=335 #carry on where we left off
+                #linkSpeed = speedKPH #KPH
+                scenarioGenerator = OneLinkLimitR(radiusKM,N,mode,Lij_rail) #was 20KM, not 5
+                scenarioGenerator.i=start_i #carry on where we left off
+                scenarioGenerator.j=start_j #carry on where we left off
                 for i in range(0,numIterations):
                     print('iteration '+str(i))
                     now = datetime.now()
                     logging.info('Iteration '+str(i)+' start: '+now.strftime("%Y%m%d_%H%M%S"))
                     
-                    qm3 = qm3_base.deepcopy() #clone a new QUANT model so we can apply changes and difference with the baseline
+                    start_time=time.process_time()
+                    #qm3 = qm3_base.deepcopy() #clone a new QUANT model so we can apply changes and difference with the baseline
+                    #with open('outputs/qm3_base.bin', 'rb') as qfile:
+                    #    qm3 = pickle.load(qfile)
+                    qm3 = copy.copy(qm3_base) #don't deep clone the whole model, just copy Cij - nothing else changes (I hope!)
+                    qm3.Cij = [ np.copy(saveCij[k]) for k in range(0,qm3.numModes) ] #copy pre-scenario Cij back
+                    #OK, so what we've jsut done is to shallow copy qm3_base, then write over the Cij properties
+                    #so that we're free to change them in qm3 for the new scenario, while being able to get the
+                    #original Cij back quickly again from saveCij - only Cij is changed by the scenario
+                    #NOTE: we need qm3_base to hold the unchanged Cij when we go to the impacts, otherwise
+                    #you can't compute how many route changes have been made
+                    #This method takes around 1s, comapred to the 10s of the full qm3=deepcopy(qm3_base) method
+                    end_time = time.process_time()
+                    print('pyquant3::deep_copy '+str(end_time-start_time)+' secs')
+                    logging.info('pyquant3::deep_copy '+str(end_time-start_time)+' secs')
 
                     ###scenario changes section here - make up a scenario
                     OiDjHash = {} #hash of zonei number as key, with array [Oi,Dj] new totals as value
@@ -289,15 +337,17 @@ def main(argv):
                     #}
                     networkChanges = scenarioGenerator.next()
                     for nc in networkChanges:
-                        r = NetworkUtils.linkKMPerHourToSeconds(nc.originZonei,nc.destinationZonei,Lij_rail,linkSpeed)
+                        r = NetworkUtils.linkKMPerHourToSeconds(nc.originZonei,nc.destinationZonei,Lij_rail,speedKPH)
                         nc.absoluteTimeSecs = r
                     ###end of scenario changes section
 
                     ###scenario run section
-                    #start_time = time.process_time()
+                    start_time = time.process_time()
                     #NOTE: runWithChanges will alter dis matrices - just in case you're doing multiple runs
                     qm3.runWithChanges(OiDjHash,networkChanges,False)
-                    #end_time = time.process_time()
+                    end_time = time.process_time()
+                    print('pyquant3:: qm3.runWithChanges() '+str(end_time-start_time)+' secs')
+                    logging.info('pyquant3:: qm3.runWithChanges() '+str(end_time-start_time)+' secs')
                     ###end scenario run section
 
                     now = datetime.now()
@@ -305,8 +355,12 @@ def main(argv):
 
                     ###write out impacts section
                     #now output results - impacts - score?
+                    start_time = time.process_time()
                     impacts = ImpactStatistics()
                     impacts.compute(qm3_base,qm3,[ Lij_road, Lij_bus, Lij_rail ], networkChanges)
+                    end_time = time.process_time()
+                    print('pyquant3:: impacts.compute '+str(end_time-start_time)+' secs')
+                    logging.info('pyquant3:: impacts.compute '+str(end_time-start_time)+' secs')
                     f.write(
                         ('{0},' #idx
                         '{1},{2},{3},' #Ck1
@@ -342,6 +396,7 @@ def main(argv):
                     for nc in networkChanges:
                         f.write(',{0},{1},{2},{3}'.format(nc.mode,nc.originZonei,nc.destinationZonei,nc.absoluteTimeSecs))
                     f.write('\n')
+                    f.flush()
 
                     #this is what QUANT3 AI does
                     #writer.Write("idx,score,depth,combs,netChgRoad,netChgBus,netChgRail,"

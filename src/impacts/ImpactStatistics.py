@@ -3,27 +3,67 @@ ImpactStatistics.py
 Compute impact statistics for a set of matrices from a scenario run
 """
 
+from numba import jit
+from numba.experimental import jitclass
+#from numba.typed import List
+from numba import float64, types, typed
+#from typing import List
+#from numba.typed import List as NumbaList
 import numpy as np
+#import cupy as cp
+import typing as pt
 
-class ImpactStatistics:
+from models.DirectNetworkChange import DirectNetworkChange
+from models.SingleOrigin import SingleOrigin
+
+#spec = [
+#    ('Ck1', float64[:]),
+#    ('Ck2', float64[:]),
+#    ('CkDiff', float64[:]),
+#    ('Lk1', float64[:]),
+#    ('Lk2', float64[:]),
+#    ('deltaLk', float64[:]),
+#    ('scenarioLinkDepth_k', float64[:]),
+#    ('scenarioLinkKM_k', float64[:]),
+#    ('scenarioLinkSavedSecs_k', float64[:]),
+#    ('LBar_k', float64[:]),
+#    ('nMinus_k', float64[:]),
+#    ('savedSecs_k', float64[:])
+#]
+
+#@jitclass()
+class ImpactStatistics(object):
+    Ck1: pt.List[float64]
+    Ck2: pt.List[float64]
+    CkDiff: pt.List[float64]
+    Lk1: pt.List[float64]
+    Lk2: pt.List[float64]
+    deltaLk: pt.List[float64]
+    scenarioLinkDepth_k: pt.List[float64]
+    scenarioLinkKM_k: pt.List[float64]
+    scenarioLinkSavedSecs_k: pt.List[float64]
+    LBar_k: pt.List[float64]
+    nMinus_k: pt.List[float64]
+    savedSecs_k: pt.List[float64]
+
     def __init__(self):
-        self.Ck1 = [] #baseline population count (people) by mode
-        self.Ck2 = [] #scenario population count (people) by mode
-        self.CkDiff = [] #Ck2-Ck1 scenario minus baseline
+        self.Ck1 = typed.List([0.0]) #baseline population count (people) by mode
+        self.Ck2 = typed.List([0.0]) #scenario population count (people) by mode
+        self.CkDiff = typed.List([0.0]) #Ck2-Ck1 scenario minus baseline
         #self.deltaDk = []
-        self.Lk1 = [] #baseline distance (KM) travelled on each mode
-        self.Lk2 = [] #scenario distance (KM) travelled on each mode
-        self.deltaLk = [] #Lk2=Lk1 difference in distance travelled by mode
+        self.Lk1 = typed.List([0.0]) #baseline distance (KM) travelled on each mode
+        self.Lk2 = typed.List([0.0]) #scenario distance (KM) travelled on each mode
+        self.deltaLk = typed.List([0.0]) #Lk2=Lk1 difference in distance travelled by mode
 
         #scenario link network changes - these are physical changes made by the scenario
-        self.scenarioLinkDepth_k = [] #this is how many changed links there are on each mode
-        self.scenarioLinkKM_k = [] #distances of added links by mode (KM)
-        self.scenarioLinkSavedSecs_k = [] #times saved by new added linsk by mode (secs)
-        self.LBar_k = [] #average geographic spread in KM of scenario nodes
+        self.scenarioLinkDepth_k = typed.List([0.0]) #this is how many changed links there are on each mode
+        self.scenarioLinkKM_k = typed.List([0.0]) #distances of added links by mode (KM)
+        self.scenarioLinkSavedSecs_k = typed.List([0.0]) #times saved by new added linsk by mode (secs)
+        self.LBar_k = typed.List([0.0]) #average geographic spread in KM of scenario nodes
 
         #scenario network changes - these are results of the APSP algorithm on network structure
-        self.nMinus_k = []
-        self.savedSecs_k = []
+        self.nMinus_k = typed.List([0.0])
+        self.savedSecs_k = typed.List([0.0])
     
 ################################################################################
 
@@ -33,7 +73,8 @@ class ImpactStatistics:
     @param dijKM FMatrix[] distance matrix
     @returns double [] total distance travelled by people
     """
-    def computeL_k(self, Tij, dijKM):
+    #@jit(nopython=True)
+    def computeL_k(self, Tij: np.matrix, dijKM: np.matrix) -> list[float]:
         NumModes = len(Tij)
         (M, N) = np.shape(Tij[0])
         Lk = [0.0 for k in range(0,NumModes)]
@@ -63,6 +104,7 @@ class ImpactStatistics:
     @param dijKM The distances (KM) between each zone in the model by mode
     @returns double[3] scenarioLinkDepth, double[3] KM between link and double[3] minutes saved
     """
+    #@jit(nopython=True)
     def computeScenarioLinkStatistics(self, networkChanges, Cij, dijKM):
         NumModes = len(dijKM)
         scenarioLinkDepth_k = [0 for k in range(0,NumModes)]
@@ -95,6 +137,7 @@ class ImpactStatistics:
     @param dijKM_k distance matrix in km with all three modes (the crowfly vertex KM one)
     @returns average distance between scenario changes nodes (NOTE: =0 if there are no changes on a mode)
     """
+    #@jit(nopython=True)
     def computeLBar(self, networkChanges, dijKM_k):
         NumModes = len(dijKM_k)
         LBar_k = [0.0 for k in range(0,NumModes)]
@@ -143,6 +186,7 @@ class ImpactStatistics:
     @param Cij2 scenario shortest paths (minutes) matrix by mode
     @returns nMinus, savedSecs
     """
+    #@jit(nopython=True)
     def computeNetworkStatistics(self,Cij1,Cij2):
         NumModes = len(Cij1)
         nMinus_k = [0.0 for k in range(0,NumModes)]
@@ -166,7 +210,9 @@ class ImpactStatistics:
     @param dijKM vertex KM distance file, 3 modes
     @param networkChanges The scenario changes so we can compute distances, spread, geographic statistics etc.
     """
-    def compute(self,qm3_base,qm3, dijKM, networkChanges):
+    #@jit(nopython=True)
+    def compute(self,qm3_base: SingleOrigin,qm3: SingleOrigin, dijKM:np.matrix, networkChanges: list):
+        #print("DNC::",type(networkChanges))
 
         (M, N) = np.shape(qm3.TObs[0])
 
