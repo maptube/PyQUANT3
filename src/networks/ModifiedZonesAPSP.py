@@ -5,6 +5,7 @@ Algorithm for modified all pairs shortest paths on a fully connected zone to zon
 TODO: the walk of N x N matrix is terrible for Python performance - how to do this?
 """
 
+from numba import jit
 import numpy as np
 
 class ModifiedZonesAPSP:
@@ -20,6 +21,7 @@ class ModifiedZonesAPSP:
     """
     #@classmethod @staticmethod
     @staticmethod
+    @jit(nopython=True)
     def computeModAPSP(dis, Origin, Destination, NewCost):
         #OK, so we have a fully connected costs matrix containing the shortest paths to start with.
         #Then we add a new link Origini to Destj with a new (lower cost). If it's a higher cost, then you might as well just throw that out and return.

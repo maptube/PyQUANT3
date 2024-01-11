@@ -47,6 +47,7 @@ class OneLinkLimitR:
             #end if
             
             #now the check on maxRadiusKM and either break and exit or continue with j and i
+            #print("Scenario,",self.i,self.j,self.LijKM[self.i,self.j])
             if not finished and self.LijKM[self.i,self.j]<=self.maxRadiusKM:
                 result = [ DirectNetworkChange(self.mode,self.i,self.j,-1) ]
                 finished=True #and we drop out of the while loop
