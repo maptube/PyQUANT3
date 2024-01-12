@@ -88,11 +88,11 @@ def parseArgs(argv):
         elif opt in ('--numiterations'):
             os.environ['SG_NumIterations']=arg
         elif opt in ('--mode'):
-            os.environ['SG_Mode']=arg    
+            os.environ['SG_Mode']=arg
         elif opt in ('--radiuskm'):
             os.environ['SG_RadiusKM']=arg
         elif opt in ('--speedkph'):
-            os.environ['SG_SpeedKPH']=arg    
+            os.environ['SG_SpeedKPH']=arg
         elif opt in ('-i','--starti'):
             os.environ['SG_Start_i']=arg
         elif opt in ('-j','--startj'):
@@ -262,8 +262,8 @@ def main(argv):
         #load and check for SG (scenario generator) environment variables
         numIterations = int(os.getenv('SG_NumIterations','10'))
         mode = int(os.getenv('SG_Mode','0'))
-        radiusKM = int(os.getenv('SG_RadiusKM','5'))
-        speedKPH = int(os.getenv('SG_SpeedKPH','100'))
+        radiusKM = float(os.getenv('SG_RadiusKM','5.0'))
+        speedKPH = float(os.getenv('SG_SpeedKPH','100.0'))
         start_i = int(os.getenv('SG_Start_i','0'))
         start_j = int(os.getenv('SG_Start_j','-1'))
         logging.info('SG_NumIterations='+str(numIterations))
@@ -285,8 +285,9 @@ def main(argv):
                 betaRail = float(os.getenv("BetaRail", default='0.0'))
             
                 qm3_base = calibrate(betaRoad,betaBus,betaRail) #calibrate our model - only if no betas passed in
-                with open('outputs/qm3_base.bin', 'wb') as qfile:
-                    pickle.dump(qm3_base, qfile)
+                #this was used if you want to save the whole baseline model object for later - 5GB! doesn't work on DAFNI
+                #with open('outputs/qm3_base.bin', 'wb') as qfile: #todo: it's [output_folder]/qm3_base.bin on DAFNI
+                #    pickle.dump(qm3_base, qfile)
                 saveCij = [ np.copy(qm3_base.Cij[k]) for k in range(0,qm3_base.numModes)] #save the pre-scenario Cij matrix as we're about to change it
 
                 #write the header line to the impacts file

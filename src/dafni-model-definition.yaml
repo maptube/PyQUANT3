@@ -14,12 +14,73 @@ metadata:
 spec:
   inputs:
     parameters:
+      - name: IsOnDAFNI
+        title: Flag to indicate that we're running on DAFNI - do not change
+        description: Indicates that the code is running on DAFNI and changes the input dirs appropriately - do not change
+        #type=['string', 'integer', 'number', 'boolean', 'json', 'link']
+        type: boolean
+        default: true
+        required: true
       - name: OpCode
         title: Operation code for QUANT
         description: Tells QUANT what operation to perform - not currently implemented - it always calibrates for now - this is going to be a string
         type: string
         default: 'CALIBRATE'
         required: true
+      - name: BetaRoad
+        title: Beta value for road from calibration
+        description: Beta value for road from calibration, if missing will trigger calibration
+        type: number
+        default: 0
+        required: false
+      - name: BetaBus
+        title: Beta value for bus from calibration
+        description: Beta value for bus from calibration, if missing will trigger calibration
+        type: number
+        default: 0
+        required: false
+      - name: BetaRail
+        title: Beta value for rail from calibration
+        description: Beta value for rail from calibration, if missing will trigger calibration
+        type: number
+        default: 0
+        required: false
+      - name: SG_NumIterations
+        title: Number of iterations
+        description: Number of iterations of the scenario generator in OpCode=RUN mode
+        type: integer
+        default: 10
+        required: false
+      - name: SG_Mode
+        title: Mode of transport for scenario generator
+        description: Mode of transport 0=road, 1=bus, 2=rail
+        type: integer
+        default: 0
+        required: false
+      - name: SG_RadiusKM
+        title: Max radius of link in KM for scenario generator
+        description: Max radius of links created by the scenario generator
+        type: number
+        default: 5.0
+        required: false
+      - name: SG_SpeedKPH
+        title: Speed of scenario generator link
+        description: Scenario generator link speed used to calculate link runtime from origin to destination link distance
+        type: number
+        default: 100.0
+        required: false
+      - name: SG_Start_i
+        title: Scenario generator origin i start zone
+        description: Scenario generator start number for the origin zone i
+        type: integer
+        default: 0
+        required: false
+      - name: SG_Start_j
+        title: Scenario generator destination j start zone
+        description: Scenario generator start number for the destination zone j
+        type: integer
+        default: 0
+        required: false  
     dataslots:
       - name: TObs_1.bin
         description: >
@@ -69,6 +130,34 @@ spec:
           - 0c9a8a60-4ecd-4893-bb92-2bdac180e820
         path: inputs/model-runs
         required: true
+      - name: ZoneCodes.xml
+        description: >
+          zonecodes xml and xsd files
+        default:
+          - 8c35ce3d-bbc1-41f7-a962-0c95b3ad9d6b
+        path: inputs/model-runs
+        required: true
+      - name: dis_crowfly_vertex_roads_KM.bin
+        description: >
+          distances between zones on the road network
+        default:
+          - 67756ce1-c8ff-48ab-8ed2-84014fe1b2f1
+        path: inputs/model-runs
+        required: true
+      - name: dis_crowfly_vertex_bus_KM.bin
+        description: >
+          distances between zones on the bus network
+        default:
+          - db4ff71a-a3e3-46ac-9dd5-e4f195999f0b
+        path: inputs/model-runs
+        required: true
+      - name: dis_crowfly_vertex_gbrail_KM.bin
+        description: >
+          distances between zones on the rail network
+        default:
+          - 52dbfb7e-c0c9-4b66-bed9-905c8e18a9c7
+        path: inputs/model-runs
+        required: true
       #- name: ZoneCodes.bin
       #  description: >
       #    ZoneCodes.bin
@@ -96,3 +185,6 @@ spec:
       - name: calibration.yaml
         type: txt
         description: yaml file containing betas and calibration values
+      - name: impacts.csv
+        type: txt
+        description: time coded impacts file

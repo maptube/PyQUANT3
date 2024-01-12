@@ -24,6 +24,7 @@
 **/secrets.dev.yaml
 **/values.dev.yaml
 **/build_dafni
+**/inputs
 **/outputs
 **/scripts
 LICENSE
