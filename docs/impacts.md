@@ -27,8 +27,6 @@ The following is a table of all variables produced in the resulting CSV file:
 |scenarioLinkDepth_k [mode k] | count of number of network link changes on each mode |
 |scenarioLinkKM_k [mode k]              | Total distance (KM) of all links in the network changes  |
 |scenarioLinkSavedSecs_k [mode k]      | Total amount of time saved (secs) of all links in the network changes (based on existing transit time minus new link transit time)  |
-| nMinus [mode k] | count of number of improved routes |
-| savedSecs [mode k] | total seconds saved on improved routes |
 | LBar_k [mode k] | average geographic distance (KM) between all pairs of nodes in scenario |
 | nMinus_k [mode k] | count of number of trips which are quicker in the scenario out of all possible N x N trips e.g. count(c=Cij1 - Cij2, where c>0) |
 | savedSecs_k [mode k] | total number of seconds saved in the scenario out of all possible N x N trip times e.g. sum(t=Cij1-Cij2, where t>0) |
