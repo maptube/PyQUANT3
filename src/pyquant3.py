@@ -308,6 +308,7 @@ def main(argv):
                 scenarioGenerator = OneLinkLimitR(radiusKM,N,mode,Lij_rail) #was 20KM, not 5
                 scenarioGenerator.i=start_i #carry on where we left off
                 scenarioGenerator.j=start_j #carry on where we left off
+
                 for i in range(0,numIterations):
                     print('iteration '+str(i))
                     now = datetime.now()

@@ -112,7 +112,7 @@ class SingleOrigin:
     testing with the TensorFlow and other implementations.
     """
     #@jit(nopython=True)
-    #@staticmethod
+    @staticmethod
     def calculateOi(Tij: np.matrix) -> np.array:
         (M, N) = np.shape(Tij)
         #OiObs
@@ -137,7 +137,7 @@ class SingleOrigin:
     testing with the TensorFlow and other implementations.
     """
     #@jit(nopython=True)
-    #@staticmethod
+    @staticmethod
     def calculateDj(Tij: np.matrix) -> np.array:
         (M, N) = np.shape(Tij)
         #DjObs
