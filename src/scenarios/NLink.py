@@ -51,13 +51,15 @@ class NLinkLimitR:
                 #make sure we don't back track and pick a possible within maxRadiusKM
                 if nj!=backlink and self.LijKM[self.i,nj]<=self.maxRadiusKM:
                     list.append(nj)
-            #pick a random one
-            self.j = random.choice(list)
-            #log it
-            result.append( DirectNetworkChange(self.mode,self.i,self.j,-1) )
-            #and then i=j to move the link along the chain
-            backline=self.i # set back link to the one before the next origin so we don't backtrack
-            self.i=self.j
+            if (len(list)>0):
+                #pick a random one
+                self.j = random.choice(list)
+                #log it
+                result.append( DirectNetworkChange(self.mode,self.i,self.j,-1) )
+                #and then i=j to move the link along the chain
+                backline=self.i # set back link to the one before the next origin so we don't backtrack
+                self.i=self.j
+            #endif
         #end for
 
         return result
