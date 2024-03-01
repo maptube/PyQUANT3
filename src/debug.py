@@ -10,10 +10,10 @@ from models.SingleOrigin import SingleOrigin
 Count how many scenarios there are in total for every zone (i)
 Output to countscenarios.txt
 """
-def debug_countScenarios(radiusKM,N,mode,Lij_rail):
+def debug_countScenarios(radiusKM,N,mode,Lij_mode):
     with open('countscenarios.csv','w') as fd:
         fd.write('zonei,count_'+str(radiusKM)+'KM\n')
-        scenarioGenerator = OneLinkLimitR(radiusKM,N,mode,Lij_rail)
+        scenarioGenerator = OneLinkLimitR(radiusKM,N,mode,Lij_mode)
         scenarioGenerator.i=0
         scenarioGenerator.j=-1
         count=0

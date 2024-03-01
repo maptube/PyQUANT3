@@ -57,6 +57,8 @@ from models.DirectNetworkChange import DirectNetworkChange
 from impacts.ImpactStatistics import ImpactStatistics
 from networks.NetworkUtils import NetworkUtils
 from scenarios.OneLink import OneLinkLimitR
+from scenarios.NLink import NLinkLimitR
+from debug import debug_countScenarios
 
 ################################################################################
 
@@ -69,11 +71,11 @@ environment variables when debugging e.g. --opcode=CALIBRATE
 def parseArgs(argv):
     opts,args = getopt.getopt(argv,
             'hdo:i:j:',
-            ['help','dafni','opcode=','betaroad=','betabus=','betarail=','numiterations=','mode=','radiuskm=','speedkph=','starti=','startj='])
+            ['help','dafni','opcode=','betaroad=','betabus=','betarail=','numlinks=','numiterations=','mode=','radiuskm=','speedkph=','starti=','startj='])
     for opt, arg in opts:
         if opt in('-h','--help'):
             print ('pyquant3.py -o [CALIBRATE|RUN] [--betaroad] [--betabus] [--beta rail]')
-            print('[--numiterations=10] [--radiuskm=5] [--mode=2] [--speedkph=100] [-i 0 | --starti=0] [-j 0 | --startj=0]')
+            print('[--numlinks=2] [--numiterations=10] [--radiuskm=5] [--mode=2] [--speedkph=100] [-i 0 | --starti=0] [-j 0 | --startj=0]')
             sys.exit()
         elif opt in ('-d','--dafni'):
             os.environ['IsOnDAFNI']=True
@@ -85,6 +87,8 @@ def parseArgs(argv):
             os.environ['BetaBus']=arg
         elif opt in ('--betarail'):
             os.environ['BetaRail']=arg
+        elif opt in ('--numlinks'):
+            os.environ['SG_NumLinks']=arg
         elif opt in ('--numiterations'):
             os.environ['SG_NumIterations']=arg
         elif opt in ('--mode'):
@@ -266,12 +270,14 @@ def main(argv):
         speedKPH = float(os.getenv('SG_SpeedKPH','100.0'))
         start_i = int(os.getenv('SG_Start_i','0'))
         start_j = int(os.getenv('SG_Start_j','-1'))
+        numLinks = int(os.getenv('SG_NumLinks','1'))
         logging.info('SG_NumIterations='+str(numIterations))
         logging.info('SG_Mode='+str(mode))
         logging.info('SG_RadiusKM='+str(radiusKM))
         logging.info('SG_SpeedKPH='+str(speedKPH))
         logging.info('SG_Start_i='+str(start_i))
         logging.info('SG_Start_j='+str(start_j))
+        logging.info('SG_NumLinks='+str(numLinks))
 
         #start an impacts file here
         now = datetime.now()
@@ -300,14 +306,25 @@ def main(argv):
                     +"scenarioLinkSavedSecsRoad, scenarioLinkSavedSecsBus, scenarioLinkSavedSecsRail,"
                     +"LBarRoad, LBarBus, LBarRail,"
                     +"nMinusRoad, nMinusBus, nMinusRail,"
-                    +"SavedSecsRoad, savedSecsBus, savedSecsRail,"
-                    +"net_mode, net_i, net_j, net_secs\n"
+                    +"SavedSecsRoad, savedSecsBus, savedSecsRail"
+                    #+"net_mode, net_i, net_j, net_secs\n"
                 )
+                for n in range(0,numLinks):
+                    f.write(",net_mode_{0}, net_i_{0}, net_j_{0}, net_secs_{0}".format(n))
+                f.write("\n")
+
                 N = len(df_ZoneCodes.index)
                 #linkSpeed = speedKPH #KPH
-                scenarioGenerator = OneLinkLimitR(radiusKM,N,mode,Lij_rail) #was 20KM, not 5
-                scenarioGenerator.i=start_i #carry on where we left off
-                scenarioGenerator.j=start_j #carry on where we left off
+                Lij_mode = [ Lij_road, Lij_bus, Lij_rail ][mode] #select correct distance matrix for scenario mode
+                #Build a scenario generator based on whether numLinks=1 or >1
+                #this is a hack! if you specify 1 link, you get OneLink sequential, while >1 gives N links randomly picked
+                #NOTE: OneLink is sequential, while NLink is a randomly picked scenario
+                if numLinks==1:
+                    scenarioGenerator = OneLinkLimitR(radiusKM,N,mode,Lij_mode) #was 20KM, not 5
+                    scenarioGenerator.i=start_i #carry on where we left off
+                    scenarioGenerator.j=start_j #carry on where we left off
+                else:
+                    scenarioGenerator = NLinkLimitR(numLinks,radiusKM,N,mode,Lij_mode) #NOTE: this picks random N link scenarios
 
                 for i in range(0,numIterations):
                     print('iteration '+str(i))
@@ -339,7 +356,7 @@ def main(argv):
                     #}
                     networkChanges = scenarioGenerator.next()
                     for nc in networkChanges:
-                        r = NetworkUtils.linkKMPerHourToSeconds(nc.originZonei,nc.destinationZonei,Lij_rail,speedKPH)
+                        r = NetworkUtils.linkKMPerHourToSeconds(nc.originZonei,nc.destinationZonei,Lij_mode,speedKPH)
                         nc.absoluteTimeSecs = r
                     ###end of scenario changes section
 
