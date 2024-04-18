@@ -56,6 +56,7 @@ from models.SingleOrigin import SingleOrigin
 from models.DirectNetworkChange import DirectNetworkChange
 from impacts.ImpactStatistics import ImpactStatistics
 from networks.NetworkUtils import NetworkUtils
+from scenarios.FileScenario import FileScenario
 from scenarios.OneLink import OneLinkLimitR
 from scenarios.NLink import NLinkLimitR
 from debug import debug_countScenarios
@@ -71,11 +72,15 @@ environment variables when debugging e.g. --opcode=CALIBRATE
 def parseArgs(argv):
     opts,args = getopt.getopt(argv,
             'hdo:i:j:',
-            ['help','dafni','opcode=','betaroad=','betabus=','betarail=','numlinks=','numiterations=','mode=','radiuskm=','speedkph=','starti=','startj='])
+            ['help','dafni','opcode=','betaroad=','betabus=','betarail=',
+             'numlinks=','numiterations=','mode=','radiuskm=','speedkph=','starti=','startj=','network='])
     for opt, arg in opts:
         if opt in('-h','--help'):
             print ('pyquant3.py -o [CALIBRATE|RUN] [--betaroad] [--betabus] [--beta rail]')
             print('[--numlinks=2] [--numiterations=10] [--radiuskm=5] [--mode=2] [--speedkph=100] [-i 0 | --starti=0] [-j 0 | --startj=0]')
+            print('or ')
+            print('--network filename.graphml --mode=2 to run a single rail network scenario from a file (overrides other settings)')
+            print('files are all relative to the inputs directory')
             sys.exit()
         elif opt in ('-d','--dafni'):
             os.environ['IsOnDAFNI']=True
@@ -101,6 +106,8 @@ def parseArgs(argv):
             os.environ['SG_Start_i']=arg
         elif opt in ('-j','--startj'):
             os.environ['SG_Start_j']=arg
+        elif opt in ('--network'):
+            os.environ['SG_Network']=arg
 #end def
 
 ################################################################################
@@ -246,6 +253,7 @@ def main(argv):
     #we have to add the all modes matrices because they don't exist in this form on the server
     #Tij_Obs = Tij_Obs_road + Tij_Obs_bus + Tij_Obs_rail #not needed?
 
+
     if opcode=='CALIBRATE':
         logging.info('calibrate')
         try:
@@ -257,6 +265,25 @@ def main(argv):
         except Exception as e:
             logging.error("Exception: ", exc_info=True)
             print(e)
+    # elif opcode=='SCENARIO':
+    #     logging.info('scenario')
+    #     try:
+    #         print('building baseline model')
+    #         #look for betas in the environment variables, which lets us skip the lengthy calibration stage
+    #         betaRoad = float(os.getenv("BetaRoad", default='0.0'))
+    #         betaBus = float(os.getenv("BetaBus", default='0.0'))
+    #         betaRail = float(os.getenv("BetaRail", default='0.0'))
+            
+    #         qm3_base = calibrate(betaRoad,betaBus,betaRail) #calibrate our model - only if no betas passed in
+    #         saveCij = [ np.copy(qm3_base.Cij[k]) for k in range(0,qm3_base.numModes)] #save the pre-scenario Cij matrix as we're about to change it
+    #         print('baseline calibrated')
+    #         #read scenario in here
+    #         #do stuff here 
+    #         qm3 = copy.copy(qm3_base) #don't deep clone the whole model, just copy Cij - nothing else changes (I hope!)
+    #         qm3.Cij = [ np.copy(saveCij[k]) for k in range(0,qm3.numModes) ] #copy pre-scenario Cij back
+    #     except Exception as e:
+    #         logging.error("Exception: ", exc_info=True)
+    #         print(e)
     elif opcode=='RUN':
         #todo: we need a changes file
         #todo: or we could assume that it's passing in a code to make a randomised scenario?
@@ -271,6 +298,10 @@ def main(argv):
         start_i = int(os.getenv('SG_Start_i','0'))
         start_j = int(os.getenv('SG_Start_j','-1'))
         numLinks = int(os.getenv('SG_NumLinks','1'))
+        networkFile = os.getenv('SG_Network','')
+        if networkFile!='':
+            networkFile = os.path.join(input_folder,networkFile)
+            numIterations=1
         logging.info('SG_NumIterations='+str(numIterations))
         logging.info('SG_Mode='+str(mode))
         logging.info('SG_RadiusKM='+str(radiusKM))
@@ -278,6 +309,7 @@ def main(argv):
         logging.info('SG_Start_i='+str(start_i))
         logging.info('SG_Start_j='+str(start_j))
         logging.info('SG_NumLinks='+str(numLinks))
+        logging.info('SG_Network='+str(networkFile))
 
         #start an impacts file here
         now = datetime.now()
@@ -309,7 +341,7 @@ def main(argv):
                     +"SavedSecsRoad, savedSecsBus, savedSecsRail"
                     #+"net_mode, net_i, net_j, net_secs\n"
                 )
-                for n in range(0,numLinks):
+                for n in range(0,numLinks): #todo: if we're loading from a graphml file, then we don't know the number of links
                     f.write(",net_mode_{0}, net_i_{0}, net_j_{0}, net_secs_{0}".format(n))
                 f.write("\n")
 
@@ -319,7 +351,9 @@ def main(argv):
                 #Build a scenario generator based on whether numLinks=1 or >1
                 #this is a hack! if you specify 1 link, you get OneLink sequential, while >1 gives N links randomly picked
                 #NOTE: OneLink is sequential, while NLink is a randomly picked scenario
-                if numLinks==1:
+                if networkFile!='': #if we have a network file defined, then that takes precedence
+                    scenarioGenerator = FileScenario(networkFile,mode,df_ZoneCodes)
+                elif numLinks==1: #otherwise, it's down to the number of links to pick a generator
                     scenarioGenerator = OneLinkLimitR(radiusKM,N,mode,Lij_mode) #was 20KM, not 5
                     scenarioGenerator.i=start_i #carry on where we left off
                     scenarioGenerator.j=start_j #carry on where we left off
@@ -417,13 +451,12 @@ def main(argv):
                     f.write('\n')
                     f.flush()
 
-                    #this is what QUANT3 AI does
-                    #writer.Write("idx,score,depth,combs,netChgRoad,netChgBus,netChgRail,"
-                    # + "netSavedMinsRoad,netSavedMinsBus,netSavedMinsRail,"
-                    # + "savedMinsRoad,savedMinsBus,savedMinsRail,"
-                    # +"deltaDkRoad,deltaDkBus,deltaDkRail,"
-                    # +"deltaLkRoad,deltaLkBus,deltaLkRail,"+modeText+"NetworkKM,LBar,"
-                    # +"ATI,ATIPop");
+                    #todo: now write out a zone statistics file if needed
+                    if networkFile!='': #trigger on the graphml file being present todo: make this a switch option
+                        impacts_zone_file = output_folder.joinpath("impacts_zones_"+now.strftime("%Y%m%d_%H%M%S")+"_"+str(i)+".csv")
+                        impacts.computeZones(qm3_base,qm3,[ Lij_road, Lij_bus, Lij_rail ], networkChanges)
+                        impacts.writeStatisticsFile(impacts_zone_file,df_ZoneCodes)
+                    #endif
 
                     now = datetime.now()
                     logging.info('Iteration '+str(i)+' finish: '+now.strftime("%Y%m%d_%H%M%S"))

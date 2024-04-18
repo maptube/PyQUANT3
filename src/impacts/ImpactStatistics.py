@@ -3,13 +3,18 @@ ImpactStatistics.py
 Compute impact statistics for a set of matrices from a scenario run
 """
 
-from numba import jit
-from numba.experimental import jitclass
+#from numba import jit
+#from numba.experimental import jitclass
 #from numba.typed import List
 from numba import float64, types, typed
 #from typing import List
 #from numba.typed import List as NumbaList
 import numpy as np
+from jax import grad, jit
+from jax import lax
+from jax import random
+import jax
+import jax.numpy as jnp
 #import cupy as cp
 import typing as pt
 
@@ -64,6 +69,14 @@ class ImpactStatistics(object):
         #scenario network changes - these are results of the APSP algorithm on network structure
         self.nMinus_k = typed.List([0.0])
         self.savedSecs_k = typed.List([0.0])
+
+        #now the vector ones - these are all [k,i] or [k,j]
+        self.Cik1 = np.array((1,1),dtype=float)
+        self.Cik2 = np.array((1,1),dtype=float)
+        self.CikDiff = np.array((1,1),dtype=float)
+        self.Cjk1 = np.array((1,1),dtype=float)
+        self.Cjk2 = np.array((1,1),dtype=float)
+        self.CjkDiff = np.array((1,1),dtype=float)
     
 ################################################################################
 
@@ -85,8 +98,10 @@ class ImpactStatistics(object):
             #    for j in range(0,N):
             #        Sum += Tij[k][i, j] * dijKM[k][i, j]
             #    Lk[k] += Sum
-            #faster
-            Lk[k]=np.sum(Tij[k] * dijKM[k])
+            #faster - numpy
+            #Lk[k]=np.sum(Tij[k] * dijKM[k])
+            #JAX
+            Lk[k]=jnp.sum(Tij[k] * dijKM[k])
         return Lk
 
 ################################################################################
@@ -192,9 +207,9 @@ class ImpactStatistics(object):
         nMinus_k = [0.0 for k in range(0,NumModes)]
         savedSecs_k = [0.0 for k in range(0,NumModes)]
         for k in range(0,NumModes):
-            nMinus_k[k]=np.count_nonzero(Cij2[k] < Cij1[k])
+            nMinus_k[k]=jnp.count_nonzero(Cij2[k] < Cij1[k])
             diff = Cij1[k]-Cij2[k] #it's saved seconds, and 2<1 if you're saving secs and it's quicker
-            diff = np.where(diff>0,diff,0) #filter out any negative values - savings are all positive
+            diff = jnp.where(diff>0,diff,0) #filter out any negative values - savings are all positive
             savedSecs_k[k] =np.sum(diff)
         #end for
         return nMinus_k, savedSecs_k
@@ -222,8 +237,8 @@ class ImpactStatistics(object):
         self.CkDiff = [0 for k in range(0,qm3.numModes)]
         for k in range(0,qm3.numModes):
             #print("deltadk: ",np.sum(qm3.TPred[k]),np.sum(qm3_base.TPred[k]))
-            self.Ck1[k] = np.sum(qm3_base.TPred[k]) #baseline count people
-            self.Ck2[k] = np.sum(qm3.TPred[k]) #scenario count people
+            self.Ck1[k] = jnp.sum(qm3_base.TPred[k]) #baseline count people
+            self.Ck2[k] = jnp.sum(qm3.TPred[k]) #scenario count people
             self.CkDiff[k] = self.Ck2[k] - self.Ck1[k] #difference in people by mode
         
         #compute distance travelled on modes
@@ -240,6 +255,57 @@ class ImpactStatistics(object):
 
         #compute scenario network statistics - measures number of faster trips and saved time (secondary changes as a result of APSP)
         self.nMinus_k, self.savedSecs_k = self.computeNetworkStatistics(qm3_base.Cij, qm3.Cij)
+
+################################################################################
+
+    """
+    computeZones
+    Computes statistics per zone, rather than overall total statistics for a scenario
+    """
+    def computeZones(self,qm3_base: SingleOrigin,qm3: SingleOrigin, dijKM:np.matrix, networkChanges: list):
+        (M, N) = np.shape(qm3.TObs[0])
+
+         #count people on modes
+        self.Cik1 = np.zeros((qm3.numModes,N),dtype=float)
+        self.Cik2 = np.zeros((qm3.numModes,N),dtype=float)
+        self.CikDiff = np.zeros((qm3.numModes,N),dtype=float)
+        self.Cjk1 = np.zeros((qm3.numModes,N),dtype=float)
+        self.Cjk2 = np.zeros((qm3.numModes,N),dtype=float)
+        self.CjkDiff = np.zeros((qm3.numModes,N),dtype=float)
+        
+        #calculations
+        for k in range(0,qm3.numModes):
+            self.Cik1[k,:] = jnp.sum(qm3_base.TPred[k],axis=1) #baseline count people
+            self.Cik2[k,:] = jnp.sum(qm3.TPred[k],axis=1) #scenario count people
+            self.CikDiff[k,:] = self.Cik2[k,:] - self.Cik1[k,:] #difference in people by mode
+
+
+################################################################################
+
+    def writeStatisticsFile(self,filename,df_zonecodes):
+        (M,N) = np.shape(self.Cik1)
+        with filename.open('w') as f:
+            #header line
+            f.write('zonei,zonecode,'
+                    +'Cik1_road,Cik1_bus,Cik1_rail,'
+                    +'Cik2_road,Cik2_bus,Cik2_rail,'
+                    +'CikDiff_road,CikDiff_bus,CikDiff_rail,'
+                    +'Cjk1_road,Cjk1_bus,Cjk1_rail,'
+                    +'Cjk2_road,Cjk2_bus,Cjk2_rail,'
+                    +'CjkDiff_road,CjkDiff_bus,CjkDiff_rail\n')
+            for i in range(0,N):
+                row = df_zonecodes[df_zonecodes['zonei'] == i]
+                zonecode=row['areakey'].values[0]
+                f.write(str(i)+','+zonecode+',')
+                f.write(f'{self.Cik1[0,i]},{self.Cik1[1,i]},{self.Cik1[2,i]},')
+                f.write(f'{self.Cik2[0,i]},{self.Cik2[1,i]},{self.Cik2[2,i]},')
+                f.write(f'{self.CikDiff[0,i]},{self.CikDiff[1,i]},{self.CikDiff[2,i]},')
+                f.write(f'{self.Cjk1[0,i]},{self.Cjk1[1,i]},{self.Cjk1[2,i]},')
+                f.write(f'{self.Cjk2[0,i]},{self.Cjk2[1,i]},{self.Cjk2[2,i]},')
+                f.write(f'{self.CjkDiff[0,i]},{self.CjkDiff[1,i]},{self.CjkDiff[2,i]}')
+                f.write('\n')
+            #end for
+    ###
 
 ################################################################################
 

@@ -5,7 +5,9 @@ Utilities to do with networks.
 
 linkKMPerHourToSeconds - given an origin and destination zonei, a distance matrix (KM) and a required speed,
 calculate what the runlink time needs to be to traverse i->j at the desired speed
+
 """
+
 
 #todo: speed conversion consts here e.g. MPHtoKPH
 
@@ -26,4 +28,8 @@ class NetworkUtils:
     def linkKMPerHourToSeconds(i,j,DisKM,KMPerHour):
         distKM = DisKM[i,j]
         return  (distKM / KMPerHour) * 3600.0 #time in hours converted to seconds
+    
+    ################################################################################
+
+    
 
