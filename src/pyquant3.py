@@ -265,25 +265,6 @@ def main(argv):
         except Exception as e:
             logging.error("Exception: ", exc_info=True)
             print(e)
-    # elif opcode=='SCENARIO':
-    #     logging.info('scenario')
-    #     try:
-    #         print('building baseline model')
-    #         #look for betas in the environment variables, which lets us skip the lengthy calibration stage
-    #         betaRoad = float(os.getenv("BetaRoad", default='0.0'))
-    #         betaBus = float(os.getenv("BetaBus", default='0.0'))
-    #         betaRail = float(os.getenv("BetaRail", default='0.0'))
-            
-    #         qm3_base = calibrate(betaRoad,betaBus,betaRail) #calibrate our model - only if no betas passed in
-    #         saveCij = [ np.copy(qm3_base.Cij[k]) for k in range(0,qm3_base.numModes)] #save the pre-scenario Cij matrix as we're about to change it
-    #         print('baseline calibrated')
-    #         #read scenario in here
-    #         #do stuff here 
-    #         qm3 = copy.copy(qm3_base) #don't deep clone the whole model, just copy Cij - nothing else changes (I hope!)
-    #         qm3.Cij = [ np.copy(saveCij[k]) for k in range(0,qm3.numModes) ] #copy pre-scenario Cij back
-    #     except Exception as e:
-    #         logging.error("Exception: ", exc_info=True)
-    #         print(e)
     elif opcode=='RUN':
         #todo: we need a changes file
         #todo: or we could assume that it's passing in a code to make a randomised scenario?
@@ -389,9 +370,11 @@ def main(argv):
                     #    DirectNetworkChange(2,0,1,r)  #mode=2,i=0,j=1,r=runlink in seconds
                     #}
                     networkChanges = scenarioGenerator.next()
-                    for nc in networkChanges:
-                        r = NetworkUtils.linkKMPerHourToSeconds(nc.originZonei,nc.destinationZonei,Lij_mode,speedKPH)
-                        nc.absoluteTimeSecs = r
+                    #todo: this section is a bit of a hack, need to fix this
+                    if networkFile=='': #if not a FileScenario, then we need to set link times ourselves
+                        for nc in networkChanges:
+                            r = NetworkUtils.linkKMPerHourToSeconds(nc.originZonei,nc.destinationZonei,Lij_mode,speedKPH)
+                            nc.absoluteTimeSecs = r
                     ###end of scenario changes section
 
                     ###scenario run section

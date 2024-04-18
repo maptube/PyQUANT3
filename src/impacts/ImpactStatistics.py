@@ -278,6 +278,9 @@ class ImpactStatistics(object):
             self.Cik1[k,:] = jnp.sum(qm3_base.TPred[k],axis=1) #baseline count people
             self.Cik2[k,:] = jnp.sum(qm3.TPred[k],axis=1) #scenario count people
             self.CikDiff[k,:] = self.Cik2[k,:] - self.Cik1[k,:] #difference in people by mode
+            self.Cjk1[k,:] = jnp.sum(qm3_base.TPred[k],axis=0) #baseline count people
+            self.Cjk2[k,:] = jnp.sum(qm3.TPred[k],axis=0) #scenario count people
+            self.CjkDiff[k,:] = self.Cjk2[k,:] - self.Cjk1[k,:] #difference in people by mode
 
 
 ################################################################################

@@ -74,7 +74,7 @@ class FileScenario:
             nodeData = edge.getElementsByTagName('data')[0]
             strWeight = nodeData.firstChild #assumes it's a text node inside e.g. <data key="weight">250</data>
             seconds = float(strWeight.nodeValue)
-            print('Edge:',source,target,seconds)
+            print('Edge:',source,target,seconds,"mode=",self.mode)
 
             #matching work
             sourceI = nearestZone[source]
