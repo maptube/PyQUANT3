@@ -1,8 +1,18 @@
 # PyQUANT3
 Python version of QUANT3 for DAFNI SCQUAIR Project
 
-# File Inputs
-The matrices need to be downloaded from here: https://osf.io/x2gbn/
+# INSTALLATION
+Run the following to install the matrices in the model-runs dir from the store on the OSF.IO site:
+
+cd scripts
+python install.py
+
+This will check whether existing files are present and only download if they are missing.
+This is the automated version of the desctiption in the next section "File Inputs (Manual version)" which explains what the
+script does at a lower level.
+
+# File Inputs (Manual version)
+The matrices need to be downloaded from here: https://osf.io/x2gbn/ (if not already installed using install.py)
 These are put in a directory called model-runs
 On the DAFNI system, this will be /data/inputs/model-runs with the matrices supplied by the model runner system on DAFNI. When running locally, the directory is hard coded in pyquant3.py (todo: this needs to be changed).
 
@@ -16,7 +26,11 @@ dis_roads_min.bin Costs file (road mode) containing time in minutes to transit b
 dis_bus_min.bin Costs file (bus mode) containing time in minutes to transit between all pairs of zones (8436x8346)
 dis_gbrail_min.bin Costs file (rail mode) containing time in minutes to transit between all pairs of zones (8436x8346)
 
-EWS_ZoneCodes.csv Lookup between zone MSOA/IZ code and zone numbers needed for the matrix files (above).
+dis_crowfly_vertex_roads_KM.bin Distance (road mode) in kilometres between the network vertices used for routing between zones (8436x8436)
+dis_crowfly_vertex_bus_KM.bin Distance (bus mode) in kilometres between the network vertices used for routing between zones (8436x8436)
+dis_crowfly_vertex_gbrail_KM.bin Distance (rail mode) in kilometres between the network vertices used for routing between zones (8436x8436)
+
+EWS_ZoneCodes.xml (.xsd) Lookup between zone MSOA/IZ code and zone numbers needed for the matrix files (above).
 
 # Command Line Options
 -h, --help prints help text
