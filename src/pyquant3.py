@@ -39,6 +39,7 @@ ZoneCodes - d5faa9b9-8a4a-421c-a0bd-cd279ab2aa68 (not needed?)
 #libraries
 import sys
 import os
+import traceback
 import pickle
 import copy
 import logging
@@ -60,6 +61,7 @@ from scenarios.FileScenario import FileScenario
 from scenarios.OneLink import OneLinkLimitR
 from scenarios.NLink import NLinkLimitR
 from debug import debug_countScenarios
+from sweepcalibrate import sweep_calibrate
 
 ################################################################################
 
@@ -265,6 +267,16 @@ def main(argv):
         except Exception as e:
             logging.error("Exception: ", exc_info=True)
             print(e)
+    elif opcode=='SWEEPCALIBRATE':
+        #perform a calibration by sweeping all three beta values and plotting number of people and average trip time for further analysis
+        #this is a debug analysis function for research
+        logging.info('sweepcalibrate')
+        try:
+            sweep_calibrate(Tij_Obs_road, Tij_Obs_bus, Tij_Obs_rail, Cij_road, Cij_bus, Cij_rail)
+        except Exception as e:
+            logging.error("Exception: ", exc_info=True)
+            print(e)
+            traceback.print_tb(e.__traceback__)
     elif opcode=='RUN':
         #todo: we need a changes file
         #todo: or we could assume that it's passing in a code to make a randomised scenario?
@@ -505,6 +517,7 @@ def calibrate(betaRoad,betaBus,betaRail):
 
 
 ################################################################################
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
