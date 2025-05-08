@@ -9,8 +9,9 @@ metadata:
   publisher: CASA
   description: >
     The QUANT2 spatial interaction model for England, Scotland and Wales.
-
-    More to go here...
+    Code available on github here: https://github.com/maptube/PyQUANT3
+    Definition of data in impacts.csv file is in docs/impacts.md
+    The main README file has additional information on how to use the model.
 spec:
   inputs:
     parameters:
@@ -23,7 +24,7 @@ spec:
         required: true
       - name: OpCode
         title: Operation code for QUANT
-        description: Tells QUANT what operation to perform - not currently implemented - it always calibrates for now - this is going to be a string
+        description: Tells QUANT what operation to perform - CALIBRATE or RUN to either calibrate beta values, or run a scenario with new data
         type: string
         default: 'CALIBRATE'
         required: true
@@ -84,7 +85,7 @@ spec:
     dataslots:
       - name: TObs_1.bin
         description: >
-          TObs_1.bin
+          TObs_1.bin people flow matrix for road commuters, binary coded, contains table of i cols  x j rows of people flow from zone i to zone j
         default:
           #TObs_1
           - 61ba53be-42c4-40de-88fe-326d115f0f5d
@@ -92,7 +93,7 @@ spec:
         required: true
       - name: TObs_2.bin
         description: >
-          TObs_2.bin
+          TObs_2.bin people flow matrix for bus commuters, binary coded, contains table of i cols  x j rows of people flow from zone i to zone j
         default:
           #TObs_2
           - a9e9e88d-b422-4d5a-a454-8abf56587c98
@@ -100,7 +101,7 @@ spec:
         required: true
       - name: TObs_3.bin
         description: >
-          TObs_3.bin
+          TObs_3.bin people flow matrix for rail commuters, binary coded, contains table of i cols  x j rows of people flow from zone i to zone j
         default:
           #TObs_3
           - 9d9d20cc-d901-494f-8ae6-46a045f284f9
@@ -108,7 +109,7 @@ spec:
         required: true
       - name: dis_roads_min.bin
         description: >
-          dis_roads_min.bin
+          dis_roads_min.bin binary matrix of road shortest path travel cost in minutes from every origin zone i to every destination zone j
         default:
           #dis1 road
           - 0faecc27-7974-4d97-b11b-5a661ba5322d
@@ -116,7 +117,7 @@ spec:
         required: true
       - name: dis_bus_min.bin
         description: >
-          dis_bus_min.bin
+          dis_bus_min.bin binary matrix of bus shortest path travel cost in minutes from every origin zone i to every destination zone j
         default:
           #dis2 bus
           - 072ead5b-2c5b-4877-b2cf-d61f6acef73e
@@ -124,7 +125,7 @@ spec:
         required: true
       - name: dis_gbrail_min.bin
         description: >
-          dis_gbrail_min.bin
+          dis_gbrail_min.bin binary matrix of rail shortest path travel cost in minutes from every origin zone i to every destination zone j
         default:
           #dis3 gbrail
           - 0c9a8a60-4ecd-4893-bb92-2bdac180e820
@@ -132,28 +133,28 @@ spec:
         required: true
       - name: ZoneCodes.xml
         description: >
-          zonecodes xml and xsd files
+          zonecodes xml and xsd files, contains zone i index number and MSOA area key for all zones, along with coords in WGS84 and OSGB38
         default:
           - 8c35ce3d-bbc1-41f7-a962-0c95b3ad9d6b
         path: inputs/model-runs
         required: true
       - name: dis_crowfly_vertex_roads_KM.bin
         description: >
-          distances between zones on the road network
+          crowfly distances between every pair of zones on the road network in kilometres
         default:
           - 67756ce1-c8ff-48ab-8ed2-84014fe1b2f1
         path: inputs/model-runs
         required: true
       - name: dis_crowfly_vertex_bus_KM.bin
         description: >
-          distances between zones on the bus network
+          crowfly distances between every pair of zones on the bus network in kilometres
         default:
           - db4ff71a-a3e3-46ac-9dd5-e4f195999f0b
         path: inputs/model-runs
         required: true
       - name: dis_crowfly_vertex_gbrail_KM.bin
         description: >
-          distances between zones on the rail network
+          crowfly distances between every pair of zones on the rail network in kilometres
         default:
           - 52dbfb7e-c0c9-4b66-bed9-905c8e18a9c7
         path: inputs/model-runs
@@ -178,13 +179,13 @@ spec:
     datasets:
       - name: debug.txt
         type: txt
-        description: Log file
+        description: Log file containing debugging information that shows the context the model was run in on the DAFNI server
       - name: PyQUANT3_log.txt
         type: txt
         description: Log File
       - name: calibration.yaml
         type: txt
-        description: yaml file containing betas and calibration values
+        description: yaml file containing the beta values needed for a model run and the calibration values (average trip times) - only produced if OPCODE=CALIBRATE
       - name: impacts.csv
         type: txt
-        description: time coded impacts file
+        description: time coded impacts file containing the impact variables for all the runs of the quant model produced from the scenario generator - only produced if OPCODE=RUN
